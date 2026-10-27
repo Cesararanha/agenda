@@ -1,0 +1,618 @@
+:root {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --surface-2: #eef1f7;
+  --border: #d9dee9;
+  --text: #171a21;
+  --text-dim: #5d6472;
+  --accent: #3b6fd4;
+  --accent-soft: #e4ecfb;
+  --danger: #c0392b;
+  --hour-height: 50px;
+  --gutter: 54px;
+  --radius: 10px;
+  --shadow: 0 8px 28px rgba(16, 20, 30, 0.14);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111318;
+    --surface: #191c23;
+    --surface-2: #21252e;
+    --border: #2f343f;
+    --text: #eef1f7;
+    --text-dim: #99a1b2;
+    --accent: #6f9bf0;
+    --accent-soft: #23304b;
+    --danger: #e2675a;
+    --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+button.danger {
+  color: var(--danger);
+  border-color: transparent;
+  background: transparent;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- estrutura ---------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar h1 {
+  font-size: 17px;
+  margin: 0 6px 0 0;
+  letter-spacing: -0.2px;
+}
+
+.range-label {
+  font-weight: 600;
+  min-width: 190px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.views {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 2px;
+}
+
+.views button {
+  border: none;
+  background: transparent;
+  padding: 5px 11px;
+  border-radius: 7px;
+}
+
+.views button[aria-pressed='true'] {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.quickbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.quickbar input {
+  flex: 1;
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.banner {
+  margin: 10px 14px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.banner.error {
+  background: color-mix(in srgb, var(--danger) 16%, var(--surface));
+}
+
+/* ---------- semana ---------- */
+
+.week {
+  min-width: 720px;
+}
+
+.week-head {
+  display: grid;
+  grid-template-columns: var(--gutter) repeat(7, 1fr);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.week-head .day {
+  padding: 7px 6px;
+  text-align: center;
+  border-left: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.week-head .day strong {
+  display: block;
+  font-size: 19px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.week-head .day.is-today strong {
+  color: #fff;
+  background: var(--accent);
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  border-radius: 50%;
+  margin: 2px auto 0;
+}
+
+.allday-row {
+  display: grid;
+  grid-template-columns: var(--gutter) repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 62px;
+  z-index: 2;
+}
+
+.allday-row .label {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 4px 6px;
+  text-align: right;
+}
+
+.allday-row .cell {
+  border-left: 1px solid var(--border);
+  padding: 3px;
+  min-height: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* titulo longo de prazo do vault vazava por cima dos dias vizinhos */
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chip {
+  max-width: 100%;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.25;
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: #fff;
+  text-align: left;
+  border: none;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--gutter) repeat(7, 1fr);
+  position: relative;
+}
+
+.hours {
+  display: flex;
+  flex-direction: column;
+}
+
+.hours span {
+  height: var(--hour-height);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+  padding-right: 6px;
+  transform: translateY(-6px);
+}
+
+.col {
+  position: relative;
+  border-left: 1px solid var(--border);
+}
+
+.col .slot {
+  height: var(--hour-height);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.col.is-today {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.event {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: 6px;
+  padding: 3px 5px;
+  font-size: 11.5px;
+  line-height: 1.22;
+  color: #fff;
+  overflow: hidden;
+  text-align: left;
+  border: none;
+  cursor: grab;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.event .time {
+  opacity: 0.85;
+  font-size: 10.5px;
+  display: block;
+}
+
+.event.dragging {
+  opacity: 0.75;
+  cursor: grabbing;
+  z-index: 5;
+}
+
+.event.from-vault::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.nowline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--danger);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.nowline::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/* ---------- dia ---------- */
+
+.day-view {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 12px 14px 60px;
+}
+
+.day-view h2 {
+  font-size: 16px;
+  margin: 0 0 10px;
+}
+
+.day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.day-item {
+  display: grid;
+  grid-template-columns: 78px 4px 1fr;
+  gap: 10px;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.day-item .when {
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.day-item .bar {
+  border-radius: 3px;
+}
+
+.day-item .what strong {
+  display: block;
+  font-weight: 600;
+}
+
+.day-item .what small {
+  color: var(--text-dim);
+}
+
+.empty {
+  color: var(--text-dim);
+  padding: 22px 4px;
+  text-align: center;
+}
+
+/* ---------- mes ---------- */
+
+.month {
+  padding: 10px 14px 40px;
+}
+
+.month-head,
+.month-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.month-head div {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-align: center;
+  padding-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.month-row {
+  margin-bottom: 5px;
+}
+
+.month-cell {
+  /* sem isto o titulo longo de um prazo do vault vaza por cima dos outros dias */
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 88px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.month-cell.other-month {
+  opacity: 0.45;
+}
+
+.month-cell.is-today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.month-cell .num {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.month-cell .more {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+/* ---------- dialogo ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 18, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 20;
+  padding: 0;
+}
+
+@media (min-width: 640px) {
+  .overlay {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+.dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 460px;
+  max-height: 92vh;
+  overflow: auto;
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  .dialog {
+    border-radius: 14px;
+  }
+}
+
+.dialog h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.field {
+  margin-bottom: 10px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.row > * {
+  flex: 1;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.check input {
+  width: auto;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.dialog-actions .spacer {
+  flex: 1;
+}
+
+.scope-ask {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.scope-ask .options {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.scope-ask button {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: 12.5px;
+}
+
+/* vale pros botoes de escopo e pros dias da semana escolhidos */
+.options button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.source-note {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
+@media (max-width: 720px) {
+  .range-label {
+    min-width: 0;
+    font-size: 13.5px;
+  }
+  .topbar h1 {
+    display: none;
+  }
+  .content {
+    -webkit-overflow-scrolling: touch;
+  }
+}

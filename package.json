@@ -1,0 +1,41 @@
+{
+  "name": "agenda",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agenda local do Cesar: PWA + API + MCP + WhatsApp, dados em SQLite no proprio Mac",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "tsx watch src/server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "AGENDA_SERVE_WEB=1 tsx src/server/index.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "typecheck": "tsc --noEmit",
+    "link": "node scripts/link.mjs",
+    "tunel": "cloudflared tunnel --url http://localhost:8787",
+    "whatsapp": "node scripts/whatsapp-check.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "whatsapp:setup": "node scripts/whatsapp-setup.mjs"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.0.4",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "fastify": "^5.2.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

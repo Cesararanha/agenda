@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cesararanha.agenda</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/cesararanha/.local/state/fnm_multishells/2570_1792864065829/bin/node</string>
+    <string>/Users/cesararanha/Documents/projects/personal-projects/agenda/node_modules/.bin/tsx</string>
+    <string>/Users/cesararanha/Documents/projects/personal-projects/agenda/src/server/index.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cesararanha/Documents/projects/personal-projects/agenda</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>AGENDA_SERVE_WEB</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cesararanha/Documents/projects/personal-projects/agenda/logs/agenda.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cesararanha/Documents/projects/personal-projects/agenda/logs/agenda.log</string>
+</dict>
+</plist>
