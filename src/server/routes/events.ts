@@ -4,6 +4,7 @@ import {
   deleteEvent,
   getSeries,
   listOccurrences,
+  listSuggestions,
   summarize,
   updateEvent,
   type EditScope,
@@ -59,6 +60,14 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
       to,
       events: listOccurrences(from, to, { category: q.category, source: q.source, search: q.q }),
     };
+  });
+
+  // o que tem data mas nao tem hora: nao entra no calendario, fica aqui
+  app.get<{ Querystring: RangeQuery }>('/api/suggestions', async (request) => {
+    const q = request.query;
+    const from = q.from ?? today(config.tz);
+    const to = q.to ?? addDays(from, 90);
+    return { from, to, suggestions: listSuggestions(from, to) };
   });
 
   app.get<{ Querystring: RangeQuery }>('/api/week', async (request) => {

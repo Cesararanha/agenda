@@ -102,6 +102,8 @@ function readTodo(vault: VaultSource): VaultItem[] {
       start: t.date,
       end: t.date,
       allDay: true,
+      // prazo do vault sabe o dia, nunca a hora: entra como sugestao
+      suggestion: true,
       category: categoryFor(t.section, t.text),
       notes: `vault ${vault.label} · tasks/todo.md${t.section ? ` · ${t.section}` : ''}`,
       externalId: stableId(prefix, [t.date, t.text]),
@@ -130,6 +132,7 @@ function readDisciplinas(vault: VaultSource): VaultItem[] {
         start: task.date,
         end: task.date,
         allDay: true,
+        suggestion: true,
         category: 'faculdade',
         notes: `vault ${vault.label} · faculdade/${entry.name}/overview.md`,
         externalId: stableId(prefix, [entry.name, task.date, task.text]),

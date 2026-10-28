@@ -98,6 +98,7 @@ function rowToOccurrence(
     rrule: row.rrule,
     source: row.source,
     overridden: Boolean(override && (override.start || override.title || override.notes)),
+    suggestion: row.is_suggestion === 1,
   };
 }
 
@@ -128,8 +129,9 @@ export function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters
 
   const rows = queryAll<EventRow>(
     `SELECT * FROM events
-     WHERE (rrule IS NULL AND substr(end, 1, 10) >= ? AND substr(start, 1, 10) <= ?)
-        OR (rrule IS NOT NULL AND substr(start, 1, 10) <= ?)`,
+     WHERE is_suggestion = 0
+       AND ((rrule IS NULL AND substr(end, 1, 10) >= ? AND substr(start, 1, 10) <= ?)
+            OR (rrule IS NOT NULL AND substr(start, 1, 10) <= ?))`,
     from,
     to,
     to,
@@ -209,13 +211,14 @@ export function createEvent(input: EventInput, actor = 'app'): Occurrence {
     exdates: '[]',
     source: input.source ?? 'app',
     external_id: input.externalId ?? null,
+    is_suggestion: input.suggestion ? 1 : 0,
     created_at: timestamp,
     updated_at: timestamp,
   };
 
   db.prepare(
-    `INSERT INTO events (id, title, notes, location, start, end, all_day, category, rrule, exdates, source, external_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO events (id, title, notes, location, start, end, all_day, category, rrule, exdates, source, external_id, is_suggestion, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     row.id,
     row.title,
@@ -229,6 +232,7 @@ export function createEvent(input: EventInput, actor = 'app'): Occurrence {
     row.exdates,
     row.source,
     row.external_id,
+    row.is_suggestion,
     row.created_at,
     row.updated_at,
   );
@@ -529,6 +533,25 @@ export function syncExternal(
 
   audit(actor, 'sync', { source, prefix, created, updated, removed });
   return { created, updated, removed };
+}
+
+/**
+ * As sugestoes: o que tem data mas nao tem hora marcada.
+ *
+ * Regra do Cesar (2026-10-27): nada entra no calendario sem horario definido. O
+ * prazo que vem do vault sabe o dia, nunca a hora, entao vive aqui ate ele
+ * decidir a hora. Nada se perde, so nao polui a semana.
+ */
+export function listSuggestions(from: DateStr, to: DateStr): Occurrence[] {
+  if (!isDateStr(from) || !isDateStr(to)) throw new BadRequest("'from' e 'to' precisam ser 'YYYY-MM-DD'");
+  const rows = queryAll<EventRow>(
+    `SELECT * FROM events
+     WHERE is_suggestion = 1 AND substr(start, 1, 10) >= ? AND substr(start, 1, 10) <= ?
+     ORDER BY start`,
+    from,
+    to,
+  );
+  return rows.map((row) => rowToOccurrence(row, dateOf(row.start), undefined));
 }
 
 /** Resumo em texto, pro WhatsApp e pras IAs. */

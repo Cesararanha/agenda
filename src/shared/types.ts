@@ -43,6 +43,7 @@ export interface EventRow {
   exdates: string;
   source: EventSource;
   external_id: string | null;
+  is_suggestion: 0 | 1;
   created_at: string;
   updated_at: string;
 }
@@ -67,6 +68,8 @@ export interface Occurrence {
   source: EventSource;
   /** ocorrencia com horario/titulo proprio, diferente da serie */
   overridden: boolean;
+  /** sem horario definido: e sugestao, nao compromisso marcado */
+  suggestion: boolean;
 }
 
 export interface EventInput {
@@ -80,4 +83,6 @@ export interface EventInput {
   rrule?: string | null;
   source?: EventSource;
   externalId?: string | null;
+  /** Item sem horario definido: fica na lista de sugestoes, fora do calendario. */
+  suggestion?: boolean;
 }

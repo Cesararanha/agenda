@@ -23,6 +23,7 @@ db.exec(`
     exdates     TEXT NOT NULL DEFAULT '[]',
     source      TEXT NOT NULL DEFAULT 'app',
     external_id TEXT,
+    is_suggestion INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
   );
@@ -53,6 +54,15 @@ db.exec(`
     detail    TEXT
   );
 `);
+
+// Banco criado antes da coluna de sugestao precisa ganhar ela sem perder dado.
+// Regra do Cesar (2026-10-27): nada sem horario definido entra no calendario.
+{
+  const colunas = db.prepare('PRAGMA table_info(events)').all() as Array<{ name: string }>;
+  if (!colunas.some((c) => c.name === 'is_suggestion')) {
+    db.exec('ALTER TABLE events ADD COLUMN is_suggestion INTEGER NOT NULL DEFAULT 0');
+  }
+}
 
 /**
  * node:sqlite devolve Record<string, SQLOutputValue>; estes dois atalhos tipam a
