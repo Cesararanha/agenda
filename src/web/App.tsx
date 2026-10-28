@@ -43,6 +43,24 @@ function rangeFor(view: View, anchor: string): { from: string; to: string } {
   return { from, to: addDays(from, 41) };
 }
 
+/**
+ * Prazo que vem do vault carrega a linha inteira do todo como titulo, as vezes um
+ * paragrafo com link. Na lista isso tem que caber numa linha; o texto completo
+ * fica no title do elemento, e o titulo curto e o que vai pro dialogo.
+ */
+const LIMITE_TITULO = 80;
+
+function tituloCurto(texto: string): string {
+  const ateOPonto = (texto.split(/\.\s|\(http/)[0] ?? texto).trim();
+  if (ateOPonto.length <= LIMITE_TITULO) return ateOPonto;
+  // cortar no meio da palavra deixa titulo tipo "salesforce-fas...", entao
+  // volta ate o ultimo espaco antes do limite
+  const pedaco = ateOPonto.slice(0, LIMITE_TITULO);
+  const ultimoEspaco = pedaco.lastIndexOf(' ');
+  const base = ultimoEspaco > LIMITE_TITULO / 2 ? pedaco.slice(0, ultimoEspaco) : pedaco;
+  return `${base.trimEnd()}...`;
+}
+
 export function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [view, setView] = useState<View>(() => {
@@ -55,6 +73,19 @@ export function App() {
   });
   const [anchor, setAnchor] = useState<string>(() => todayIn());
   const [events, setEvents] = useState<Occurrence[]>([]);
+  const [suggestions, setSuggestions] = useState<Occurrence[]>([]);
+  // no celular a lista aberta empurra o calendario pra fora da tela, entao ela
+  // nasce recolhida em tela estreita. A escolha do Cesar vence e fica guardada.
+  const [showSuggestions, setShowSuggestions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('agenda:sugestoes');
+      if (saved === 'abertas') return true;
+      if (saved === 'recolhidas') return false;
+    } catch {
+      // modo privado: segue com o padrao da largura
+    }
+    return window.innerWidth > 560;
+  });
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: 'info' | 'error' } | null>(null);
   const [quick, setQuick] = useState('');
@@ -71,10 +102,24 @@ export function App() {
     }
   }, [view]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('agenda:sugestoes', showSuggestions ? 'abertas' : 'recolhidas');
+    } catch {
+      // idem
+    }
+  }, [showSuggestions]);
+
   const load = useCallback(async () => {
     try {
-      const data = await api.events(range.from, range.to);
+      // as sugestoes nao seguem a janela do calendario: sao poucas e valem ser
+      // vistas de uma vez, senao some da tela o que nao tem hora marcada
+      const [data, pendentes] = await Promise.all([
+        api.events(range.from, range.to),
+        api.suggestions(todayIn(), addDays(todayIn(), 180)),
+      ]);
       setEvents(data.events);
+      setSuggestions(pendentes.suggestions);
     } catch (error) {
       setMessage({ text: `Nao consegui carregar: ${(error as Error).message}`, kind: 'error' });
     }
@@ -214,6 +259,45 @@ export function App() {
         >
           {message.text}
         </div>
+      )}
+
+      {suggestions.length > 0 && (
+        <section className="sugestoes">
+          <button
+            className="sugestoes-cabecalho"
+            onClick={() => setShowSuggestions((v) => !v)}
+            aria-expanded={showSuggestions}
+          >
+            <span className="sugestoes-contagem">{suggestions.length}</span>
+            sem horario definido
+            <span className="sugestoes-seta">{showSuggestions ? '\u2303' : '\u2304'}</span>
+          </button>
+          {showSuggestions && (
+            <ul className="sugestoes-lista">
+              {suggestions.map((s) => (
+                <li key={s.id} style={{ borderLeftColor: s.color }}>
+                  <span className="sugestoes-data">{formatDateBR(s.occurrenceDate).slice(0, 5)}</span>
+                  <span className="sugestoes-titulo" title={s.title}>
+                    {tituloCurto(s.title)}
+                  </span>
+                  <button
+                    className="ghost"
+                    onClick={() =>
+                      setDialog({
+                        mode: 'create',
+                        date: s.occurrenceDate,
+                        time: '09:00',
+                        title: tituloCurto(s.title),
+                      })
+                    }
+                  >
+                    Dar horario
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       <main className="content">

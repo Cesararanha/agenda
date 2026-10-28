@@ -5,7 +5,7 @@ import { formatRrule, parseRrule } from '../../shared/recurrence.js';
 import { CATEGORIES, type Category, type Occurrence } from '../../shared/types.js';
 
 export type DialogState =
-  | { mode: 'create'; date: string; time: string }
+  | { mode: 'create'; date: string; time: string; title?: string }
   | { mode: 'edit'; occurrence: Occurrence };
 
 interface Props {
@@ -56,7 +56,9 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
     [editing?.rrule],
   );
 
-  const [title, setTitle] = useState(editing?.title ?? '');
+  const [title, setTitle] = useState(
+    editing?.title ?? (state.mode === 'create' ? (state.title ?? '') : ''),
+  );
   const [category, setCategory] = useState<Category>(editing?.category ?? 'outro');
   const [allDay, setAllDay] = useState(editing?.allDay ?? false);
   const [date, setDate] = useState(

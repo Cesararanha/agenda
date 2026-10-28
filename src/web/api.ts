@@ -71,6 +71,13 @@ export const api = {
       `/api/events?from=${from}&to=${to}`,
     ),
 
+  /** O que tem data mas nao tem hora marcada. Nao aparece no calendario. */
+  suggestions: (from: string, to: string) =>
+    request<{ from: string; to: string; suggestions: Occurrence[] }>(
+      'GET',
+      `/api/suggestions?from=${from}&to=${to}`,
+    ),
+
   create: (payload: EventPayload) => request<Occurrence>('POST', '/api/events', payload),
 
   quickAdd: (text: string) =>

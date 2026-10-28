@@ -169,6 +169,107 @@ button:focus-visible {
   flex: 1;
 }
 
+/* --- sugestoes: o que tem data mas nao tem hora marcada --- */
+/* Fica entre a barra de marcar e o calendario, recolhivel, porque e lembrete e
+   nao compromisso: tem que ser visto sem roubar o lugar da semana. */
+.sugestoes {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.sugestoes-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sugestoes-cabecalho:hover {
+  color: var(--text);
+}
+
+.sugestoes-contagem {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sugestoes-seta {
+  margin-left: auto;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.sugestoes-lista {
+  margin: 0;
+  padding: 0 14px 10px;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.sugestoes-lista li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-left: 3px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.sugestoes-data {
+  flex: none;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.sugestoes-titulo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sugestoes-lista button {
+  flex: none;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+/* no celular o botao nao cabe ao lado do texto */
+@media (max-width: 560px) {
+  .sugestoes-lista li {
+    flex-wrap: wrap;
+  }
+
+  .sugestoes-titulo {
+    white-space: normal;
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .sugestoes-lista button {
+    margin-left: auto;
+  }
+}
+
 .content {
   flex: 1;
   overflow: auto;
