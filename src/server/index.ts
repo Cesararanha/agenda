@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { eventRoutes } from './routes/events.js';
 import { vaultRoutes } from './routes/vault.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
+import { agentSandboxRoutes } from './routes/agent-sandbox.js';
 import { syncAllVaults } from './vault/importer.js';
 import { BadRequest, NotFound } from './events.js';
 
@@ -98,6 +99,7 @@ app.get('/api/health', async () => ({ ok: true, tz: config.tz }));
 await app.register(eventRoutes);
 await app.register(vaultRoutes);
 await app.register(whatsappRoutes);
+if (config.agentSandbox) await app.register(agentSandboxRoutes);
 
 if (config.serveWeb) {
   await app.register(fastifyStatic, { root: config.webDir });

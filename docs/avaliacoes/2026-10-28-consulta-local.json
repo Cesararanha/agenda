@@ -1,0 +1,57 @@
+{
+  "syntheticOnly": true,
+  "createdAt": "2026-10-28T13:24:37.855Z",
+  "environment": {
+    "version": "0.40.12",
+    "model": "qwen3:4b",
+    "digest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+    "diskBytes": 2497293931,
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "qwen3",
+      "families": [
+        "qwen3"
+      ],
+      "parameter_size": "4.0B",
+      "quantization_level": "Q4_K_M"
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "thinking"
+    ]
+  },
+  "result": {
+    "kind": "answer",
+    "message": "A duração preferida dos blocos de estudo da pessoa fictícia é 35 minutos.",
+    "evidenceIds": [
+      "preferencias.md"
+    ],
+    "usage": {
+      "filesRead": 4,
+      "charactersRead": 213,
+      "charactersReturned": 99
+    }
+  },
+  "measurements": [
+    {
+      "content": "{\"kind\": \"answer\", \"event\": null, \"suggestionId\": null, \"evidenceIds\": [\"preferencias.md\"], \"message\": \"A duração preferida dos blocos de estudo da pessoa fictícia é 35 minutos.\"}",
+      "wallMs": 8117.649208999999,
+      "inputChars": 2544,
+      "metrics": {
+        "totalMs": 8096.722042,
+        "loadMs": 4566.23175,
+        "promptTokens": 754,
+        "outputTokens": 56,
+        "promptMs": 1287.679,
+        "outputMs": 2202.422
+      }
+    }
+  ],
+  "readyForRealActions": false,
+  "limitations": [
+    "Atribuição de fontes não prova exatidão semântica.",
+    "Consulta fictícia sem ferramentas de escrita."
+  ]
+}

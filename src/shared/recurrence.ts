@@ -95,8 +95,12 @@ export function occurrenceDates(
   };
 
   if (rule.freq === 'DAILY') {
-    for (let d = anchor; d <= hardStop; d = addDays(d, rule.interval)) {
-      if (iterations++ > MAX_ITERATIONS) break;
+    // Salta o passado sem perder a posição de COUNT.
+    const skipped = Math.max(0, Math.ceil(diffDays(from, anchor) / rule.interval));
+    emitted = skipped;
+    if (rule.count && emitted >= rule.count) return out;
+    for (let d = addDays(anchor, skipped * rule.interval); d <= hardStop; d = addDays(d, rule.interval)) {
+      if (iterations++ > MAX_ITERATIONS) throw new Error('Limite de expansão de recorrência excedido');
       if (emit(d) === 'stop') break;
     }
     return out;
@@ -108,9 +112,14 @@ export function occurrenceDates(
     const offsets = days
       .map((d) => (d === 0 ? 6 : d - 1))
       .sort((a, b) => a - b);
-    let weekStart = startOfWeek(anchor);
+    const anchorWeek = startOfWeek(anchor);
+    const skipped = Math.max(0, Math.floor(diffDays(startOfWeek(from), anchorWeek) / (7 * rule.interval)));
+    const firstWeekCount = offsets.filter((offset) => addDays(anchorWeek, offset) >= anchor).length;
+    emitted = skipped ? firstWeekCount + (skipped - 1) * offsets.length : 0;
+    if (rule.count && emitted >= rule.count) return out;
+    let weekStart = addDays(anchorWeek, skipped * 7 * rule.interval);
     while (weekStart <= hardStop) {
-      if (iterations++ > MAX_ITERATIONS) break;
+      if (iterations++ > MAX_ITERATIONS) throw new Error('Limite de expansão de recorrência excedido');
       let stopped = false;
       for (const offset of offsets) {
         if (emit(addDays(weekStart, offset)) === 'stop') {
@@ -142,6 +151,7 @@ export function occurrenceDates(
       year++;
     }
   }
+  if (iterations > MAX_ITERATIONS + 1) throw new Error('Limite de expansão de recorrência excedido');
   return out;
 }
 
