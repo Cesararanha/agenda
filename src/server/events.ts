@@ -129,10 +129,14 @@ export function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters
   const rows = queryAll<EventRow>(
     `SELECT * FROM events
      WHERE (rrule IS NULL AND substr(end, 1, 10) >= ? AND substr(start, 1, 10) <= ?)
-        OR (rrule IS NOT NULL AND substr(start, 1, 10) <= ?)`,
+        OR (rrule IS NOT NULL AND substr(start, 1, 10) <= ?)
+        OR EXISTS (SELECT 1 FROM overrides o WHERE o.event_id = events.id AND o.canceled = 0
+          AND o.start IS NOT NULL AND substr(o.start, 1, 10) <= ? AND substr(COALESCE(o.end, o.start), 1, 10) >= ?)`,
     from,
     to,
     to,
+    to,
+    from,
   );
 
   const overrides = overridesFor(rows.map((r) => r.id));
@@ -149,7 +153,14 @@ export function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters
     const rule = parseRrule(row.rrule);
     const exdates = new Set<string>(JSON.parse(row.exdates || '[]') as string[]);
 
-    for (const date of occurrenceDates(anchor, rule, searchFrom, to)) {
+    const dates = new Set(occurrenceDates(anchor, rule, searchFrom, to));
+    // Uma exceção pode ter sido movida de fora da janela, inclusive de uma série futura.
+    for (const override of overrides.values()) {
+      if (override.event_id !== row.id || override.canceled || !override.start
+        || dateOf(override.start) > to || dateOf(override.end ?? override.start) < from) continue;
+      if (occurrenceDates(anchor, rule, override.occurrence_date, override.occurrence_date).length) dates.add(override.occurrence_date);
+    }
+    for (const date of dates) {
       if (exdates.has(date)) continue;
       const override = overrides.get(`${row.id}:${date}`);
       if (override?.canceled) continue;

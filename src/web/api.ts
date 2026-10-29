@@ -1,4 +1,5 @@
 import type { Occurrence } from '../shared/types.js';
+import type { DemoReply, DemoPanel, DemoTurn } from '../shared/agent.js';
 
 /**
  * No Mac o token nao e exigido; no celular ele vem da URL (?token=...) uma vez
@@ -47,6 +48,7 @@ export interface Meta {
   categories: Array<{ id: string; color: string }>;
   vaults: string[];
   whatsapp: boolean;
+  agentSandbox?: boolean;
 }
 
 export interface EventPayload {
@@ -93,4 +95,10 @@ export const api = {
       'POST',
       '/api/vaults/sync',
     ),
+};
+
+export const demoApi = {
+  panel: () => request<DemoPanel>('GET', '/api/agent/sandbox/panel'),
+  history: (conversationId: string) => request<{ turns: DemoTurn[] }>('GET', `/api/agent/sandbox/history?conversationId=${encodeURIComponent(conversationId)}`),
+  chat: (body: { conversationId: string; requestId: string; input: string }) => request<DemoReply>('POST', '/api/agent/sandbox/chat', body),
 };

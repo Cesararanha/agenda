@@ -1,4 +1,28 @@
-# Agenda
+# Agente César 2.0
+
+Assistente pessoal local em desenvolvimento, construído sobre uma agenda existente.
+O protótipo combina consultas de contexto com um modelo local, ferramentas de
+agenda e controles de confirmação, conflitos, repetição e transações em SQLite.
+
+A demonstração usa dados fictícios e roda separada da agenda pessoal. O modelo
+`qwen3:4b` é pré-treinado e executado com Ollama; não foi feito fine-tuning.
+As operações de calendário passam por interpretadores e validações em TypeScript.
+O modelo participa das consultas de contexto, identifica o título em alguns
+pedidos de registro e separa blocos de planos com vários compromissos. Os campos
+interpretados passam por validação independente e os planos aguardam confirmação.
+Quem grava os compromissos é a API no SQLite;
+o modelo não recebe acesso direto à escrita.
+
+- [Apresentação para portfólio: arquitetura, evidências e roteiro](docs/portfolio.md).
+- [Como abrir a demonstração e quais pedidos experimentar](docs/agente-conversa.md).
+- [Preparação do modelo local e avaliação](docs/agente-piloto.md).
+
+Com o ambiente preparado, `npm run agent:app` abre a demonstração em
+`http://127.0.0.1:8790`, sem exigir o vault pessoal. O restante deste README
+documenta a agenda que serve de base e suas integrações originais. Essas
+integrações não são habilitadas na demonstração do agente.
+
+## Agenda que serve de base
 
 Agenda local do Cesar. Roda no proprio Mac, guarda tudo num SQLite na pasta `data/`
 e nao manda nada pra nuvem. Quatro portas de entrada pros mesmos dados:
@@ -186,6 +210,22 @@ do SENAI, com o `.env` dela apontando pro cofre e um `AGENDA_DB` proprio. Mesmo 
 bancos separados, regra intacta.
 
 ---
+
+## Piloto do Agente César 2.0
+
+A fase 1 tem um avaliador local por linha de comando com Ollama e `qwen3:4b`,
+usando somente dados fictícios. Consulte [preparo, execução e limites do piloto](docs/agente-piloto.md).
+O piloto não altera as rotas, telas ou dados da agenda.
+
+O [núcleo em desenvolvimento](docs/agente-nucleo.md) acrescenta controles de
+registro e confirmação, contexto local em modo de leitura e demonstrações
+fictícias: `npm run agent:demo` e `npm run agent:replay`.
+
+Para experimentar o painel com conversa, execute `npm run agent:app`.
+Veja os [exemplos e limites da demonstração](docs/agente-conversa.md).
+Pedidos fora da gramática direta passam por identificação de intenção com o
+modelo local. Consulte a [avaliação de pedidos novos e continuidade da conversa](docs/avaliacoes/2026-10-28-confiabilidade.md)
+e reproduza os diálogos com `npm run agent:eval:dialogues`.
 
 ## Estrutura
 

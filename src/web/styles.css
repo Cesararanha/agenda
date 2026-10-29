@@ -616,3 +616,63 @@ button:focus-visible {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Demonstração do agente: visível somente na instância de dados fictícios. */
+.demo-app { height: 100%; overflow: auto; padding: 24px clamp(14px, 4vw, 48px); }
+.demo-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; max-width: 1240px; margin: 0 auto 18px; }
+.demo-eyebrow { font-size: 11px; letter-spacing: 1.4px; font-weight: 700; color: var(--accent); margin: 0 0 7px; }
+.demo-header h1 { font-size: clamp(24px, 3vw, 34px); letter-spacing: -.8px; margin: 0; }
+.demo-header p:not(.demo-eyebrow) { margin: 6px 0 0; color: var(--text-dim); }
+.demo-notice { max-width: 1240px; margin: 0 auto 20px; padding: 10px 14px; background: var(--accent-soft); border-radius: 8px; font-size: 13px; }
+.demo-layout { max-width: 1240px; margin: auto; display: grid; grid-template-columns: minmax(250px, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.demo-day { display: grid; gap: 16px; }
+.demo-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+.demo-card h2 { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 16px; margin: 0 0 16px; }
+.demo-card h2 span { color: var(--text-dim); font-weight: 400; font-size: 12px; }
+.demo-events, .demo-tasks { list-style: none; padding: 0; margin: 0; }
+.demo-events li { display: grid; grid-template-columns: 54px 1fr; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.demo-events time { font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.demo-events time small { display: block; color: var(--text-dim); }
+.demo-events strong { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.demo-tasks li { display: flex; gap: 10px; padding: 8px 0; font-size: 14px; }
+.demo-tasks li::before { content: '○'; color: var(--accent); }
+.demo-suggestion { padding: 12px 0; border-top: 1px solid var(--border); }
+.demo-suggestion p { font-size: 13px; color: var(--text-dim); margin: 4px 0 10px; }
+.demo-diagnostics { margin: 10px 0; font-size: 12px; color: var(--text-dim); }
+.demo-diagnostics summary { cursor: pointer; }
+.demo-diagnostics summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.demo-diagnostics dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 7px 10px; }
+.demo-diagnostics dt { font-weight: 600; }
+.demo-diagnostics dd { margin: 0; overflow-wrap: anywhere; }
+.demo-diagnostics p { font-size: 12px; }
+.demo-chat { display: flex; flex-direction: column; min-height: 580px; height: min(760px, calc(100dvh - 190px)); }
+.demo-chat:has(.demo-diagnostics[open]) { height: auto; }
+.demo-examples { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.demo-examples button { font-size: 12px; padding: 5px 9px; text-align: left; }
+.demo-messages { flex: 1; min-height: 180px; overflow: auto; padding: 16px 4px 16px 0; display: flex; flex-direction: column; gap: 14px; }
+.demo-welcome { margin: auto 0; color: var(--text-dim); max-width: 440px; }
+.demo-welcome strong { color: var(--text); }
+.demo-message { max-width: 92%; padding: 10px 13px; border-radius: 10px; overflow-wrap: anywhere; }
+.demo-message.user { align-self: flex-end; background: var(--accent-soft); }
+.demo-message.assistant { align-self: flex-start; background: var(--surface-2); }
+.demo-message > small { color: var(--text-dim); font-size: 11px; font-weight: 600; }
+.demo-message p { margin: 4px 0; white-space: pre-wrap; }
+.demo-sources { display: block; margin-top: 8px; font-weight: 400 !important; }
+.demo-message button { margin-top: 10px; }
+.demo-applied { display: block; font-size: 12px; margin-top: 8px; color: var(--text-dim); }
+.demo-thinking { color: var(--text-dim); font-size: 13px; }
+.demo-composer { border-top: 1px solid var(--border); padding-top: 12px; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: end; }
+.demo-composer label { grid-column: 1 / -1; font-size: 12px; color: var(--text-dim); }
+.demo-composer textarea { resize: vertical; min-height: 65px; max-height: 180px; }
+.demo-app .banner { max-width: 1240px; margin: 0 auto 14px; }
+.demo-app .banner button { margin-left: 10px; }
+.demo-app button:disabled { cursor: default; opacity: .55; }
+@media (max-width: 760px) {
+  .demo-app { padding-top: 16px; }
+  .demo-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .demo-layout { grid-template-columns: 1fr; }
+  .demo-day { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .demo-chat { height: 650px; min-height: 520px; max-height: none; }
+  .demo-composer { grid-template-columns: 1fr; }
+  .demo-composer button { justify-self: end; }
+}

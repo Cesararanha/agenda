@@ -4,6 +4,7 @@ import { WeekView } from './views/WeekView.js';
 import { DayView } from './views/DayView.js';
 import { MonthView } from './views/MonthView.js';
 import { EventDialog, type DialogState } from './components/EventDialog.js';
+import { AgentDemo } from './components/AgentDemo.js';
 import {
   addDays,
   endOfMonth,
@@ -59,6 +60,7 @@ export function App() {
   const [message, setMessage] = useState<{ text: string; kind: 'info' | 'error' } | null>(null);
   const [quick, setQuick] = useState('');
   const [busy, setBusy] = useState(false);
+  const [demoCalendar, setDemoCalendar] = useState(false);
 
   const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);
   const today = meta?.today ?? todayIn();
@@ -157,10 +159,13 @@ export function App() {
     }
   }
 
+  if (meta?.agentSandbox && !demoCalendar) return <AgentDemo onCalendar={(date) => { setAnchor(date ?? today); if (date) setView('dia'); setDemoCalendar(true); void load(); }} />;
+
   return (
     <div className="app">
       <header className="topbar">
-        <h1>Agenda</h1>
+        <h1>{meta?.agentSandbox ? 'Agenda fictícia' : 'Agenda'}</h1>
+        {meta?.agentSandbox && <button onClick={() => setDemoCalendar(false)}>Voltar ao painel do agente</button>}
         <button onClick={() => setAnchor(today)}>Hoje</button>
         <button className="ghost" onClick={() => shift(-1)} aria-label="anterior">
           &#8249;
@@ -181,9 +186,9 @@ export function App() {
             </button>
           ))}
         </div>
-        <button onClick={syncVaults} disabled={busy} title="Rele os prazos do vault">
+        {!meta?.agentSandbox && <button onClick={syncVaults} disabled={busy} title="Rele os prazos do vault">
           Vault
-        </button>
+        </button>}
         <button
           className="primary"
           onClick={() =>
@@ -193,6 +198,8 @@ export function App() {
           + Novo
         </button>
       </header>
+
+      {meta?.agentSandbox && <div className="banner" role="status">Calendário de demonstração, somente com dados fictícios.</div>}
 
       <form className="quickbar" onSubmit={runQuickAdd}>
         <input

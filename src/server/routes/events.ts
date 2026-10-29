@@ -42,11 +42,13 @@ function scopeOf(query: ScopeQuery): EditScope {
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/meta', async () => ({
-    today: today(config.tz),
+    today: config.agentDemoNow ? config.agentDemoNow.slice(0, 10) : today(config.tz),
     tz: config.tz,
     categories: CATEGORIES.map((c) => ({ id: c, color: CATEGORY_COLORS[c] })),
     vaults: config.vaults.map((v) => v.label),
     whatsapp: config.whatsapp.enabled,
+    agentSandbox: config.agentSandbox,
+    ...(config.agentSandbox ? { agentDemoId: config.agentDemoId } : {}),
   }));
 
   app.get<{ Querystring: RangeQuery }>('/api/events', async (request) => {
