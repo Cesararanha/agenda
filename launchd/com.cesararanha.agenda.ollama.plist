@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>OLLAMA_HOST</key>
+		<string>127.0.0.1:11434</string>
+		<key>OLLAMA_MODELS</key>
+		<string>/Users/cesararanha/dev/agenda/data/pilot/models</string>
+		<key>OLLAMA_NO_CLOUD</key>
+		<string>1</string>
+	</dict>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.cesararanha.agenda.ollama</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/cesararanha/dev/agenda/data/pilot/runtime/ollama</string>
+		<string>serve</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/cesararanha/dev/agenda/logs/ollama.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/cesararanha/dev/agenda/logs/ollama.log</string>
+	<key>ThrottleInterval</key>
+	<integer>15</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/cesararanha/dev/agenda</string>
+</dict>
+</plist>
