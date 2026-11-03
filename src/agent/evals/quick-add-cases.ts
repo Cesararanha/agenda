@@ -29,4 +29,14 @@ export const quickCases: Array<{ input: string; expected: Expected[] }> = [
   { input: '31/11 às 13h entrega', expected: [] },
   { input: 'mova a consulta de amanhã para quinta às 13h', expected: [] },
   { input: 'não marque reunião amanhã às 14h', expected: [] },
+  { input: 'trabalho de segunda a sexta das 8 às 14', expected: [['Trabalho', '2026-11-03', '08:00', { endTime: '14:00', rrule: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', category: 'trabalho' }]] },
+  { input: 'trabalho segunda e quarta das 8 às 14 e terça, quinta e sexta das 10 às 16', expected: [
+    ['Trabalho', '2026-11-04', '08:00', { endTime: '14:00', rrule: 'FREQ=WEEKLY;BYDAY=MO,WE', category: 'trabalho' }],
+    ['Trabalho', '2026-11-03', '10:00', { endTime: '16:00', rrule: 'FREQ=WEEKLY;BYDAY=TU,TH,FR', category: 'trabalho' }],
+  ] },
+  { input: 'semana que vem na quarta tenho prova de banco de dados as 19h na faculdade', expected: [['Prova de banco de dados', '2026-11-11', '19:00', { category: 'faculdade', location: 'faculdade' }]] },
+  { input: 'preciso ir no banco sexta de manha umas 9 e meia, deve levar umas duas horas', expected: [['Ir no banco', '2026-11-06', '09:30', { endTime: '11:30' }]] },
+  { input: 'todo dia 6 da manhã correr na praia', expected: [['Correr na praia', '2026-11-03', '06:00', { rrule: 'FREQ=DAILY' }]] },
+  { input: 'marca pra mim uma reunião com a Ana depois de amanhã às 16h no Café Central', expected: [['Reunião com a Ana', '2026-11-05', '16:00', { location: 'Café Central' }]] },
+  { input: 'sexta tenho aula de 19 as 22', expected: [['Aula', '2026-11-06', '19:00', { endTime: '22:00' }]] },
 ];

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { applyQuickExtraction, quickBlocks, quickModelInput, quickNotes } from '../../agent/core/quick-add.js';
+import { applyQuickExtraction, eventHint, quickBlocks, quickModelInput, quickNotes } from '../../agent/core/quick-add.js';
 import { timedEvent, wallMoment } from '../../agent/core/request.js';
 import { Ollama, pilotConfig } from '../../agent/pilot/ollama.js';
 import { addDays, dateOf, now } from '../../shared/dates.js';
@@ -9,7 +9,7 @@ import { CATEGORIES, type EventSource } from '../../shared/types.js';
 import { config } from '../config.js';
 import { audit, db } from '../db.js';
 import { BadRequest, createEvent, listOccurrences } from '../events.js';
-import { inferCategory, parseQuickAdd } from '../nlp.js';
+import { inferCategory } from '../nlp.js';
 
 export const SIMPLE_NOTICE = 'Entendi do jeito simples, confira os campos.';
 export const quickInput = z.string().trim().min(1).max(1500);
@@ -35,18 +35,16 @@ export async function interpretQuickAdd(
   } catch {
     notice = SIMPLE_NOTICE;
     drafts = parsed.blocks.map(({ text, eventText, date, time, endTime, rrule }) => {
-      const simplified = eventText.replace(/\bdia \d{1,2}\b|\b[àa]\s+(?:noite|tarde)\b|\bde manh[ãa]/giu, ' ');
-      const fallback = parseQuickAdd(simplified, config.tz);
-      const title = fallback.title.replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase('pt-BR'));
+      const title = (eventHint(eventText) || 'Sem titulo').replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase('pt-BR'));
       const detail = text.slice(text.indexOf(eventText) + eventText.length).replace(/^[.!,;\s]+/, '').trim();
-      return { title, date, time, endTime, rrule, category: fallback.category ?? 'outro', location: null,
+      return { title, date, time, endTime, rrule, category: 'outro', location: null,
         notes: quickNotes(detail, null) };
     });
     if (drafts.some((draft) => draft.title === 'Sem titulo')) {
       return { drafts: [], notice, question: 'Qual é o título do compromisso?' };
     }
   }
-  drafts = drafts.map((draft) => ({ ...draft, category: inferCategory(draft.title) ?? draft.category }));
+  drafts = drafts.map((draft) => ({ ...draft, category: (/\b(?:correr|corrida|caminhada)\b/i.test(draft.title) ? 'saude' : inferCategory(draft.title)) ?? draft.category }));
   const missing = drafts.filter((draft) => !draft.date || !draft.time);
   const question = missing.length
     ? missing.map((draft) => `Qual ${!draft.date && !draft.time ? 'é a data e o horário' : !draft.date ? 'é a data' : 'é o horário'} de “${draft.title}”?`).join(' ')

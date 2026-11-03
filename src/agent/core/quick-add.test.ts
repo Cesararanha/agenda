@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyQuickExtraction, quickBlocks } from './quick-add.js';
+import { applyQuickExtraction, quickBlocks, quickModelInput } from './quick-add.js';
 import { quickCases, reference } from '../evals/quick-add-cases.js';
 import { parseQuickAdd } from '../../server/nlp.js';
 
@@ -12,9 +12,12 @@ for (const { input, expected } of quickCases) {
       return;
     }
     assert.ok('blocks' in parsed, 'question' in parsed ? parsed.question : '');
-    const raw = { items: expected.map(([titleSpan, , , extra]) => ({
-      titleSpan, category: extra?.category ?? 'outro', location: extra?.location ?? null, notes: extra?.notes ?? null,
-    })) };
+    const raw = { items: quickModelInput(parsed.blocks).map((_, index) => {
+      const [titleSpan, , , extra] = expected[index]!;
+      return {
+        titleSpan, category: extra?.category ?? 'outro', location: extra?.location ?? null, notes: extra?.notes ?? null,
+      };
+    }) };
     const drafts = applyQuickExtraction(raw, parsed.blocks);
     assert.ok(drafts);
     assert.deepEqual(drafts.map(({ title, date, time }) => [title, date, time]), expected.map((item) => item.slice(0, 3)));
