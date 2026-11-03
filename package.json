@@ -38,7 +38,9 @@
     "test:agent:changes": "node scripts/agent-changes-regression.mjs",
     "agent:eval:changes": "node --import tsx scripts/agent-change-eval.ts",
     "agent:verify": "npm run typecheck && npm run test:agent && npm run test:agent:api && npm run test:agent:chat && npm run test:agent:changes && npm run test:agent:weekly && npm run test:agenda && npm run build",
-    "agent:verify:model": "npm run agent:check && npm run agent:eval:language -- --with-model && npm run agent:eval:planning && npm run agent:eval:planning -- --holdout && npm run agent:eval:dialogues && npm run agent:eval:dialogues -- --holdout && npm run agent:eval:dialogues -- --unseen && npm run agent:eval:dialogues -- --acceptance && npm run agent:eval:changes"
+    "agent:verify:model": "npm run agent:check && npm run agent:eval:language -- --with-model && npm run agent:eval:planning && npm run agent:eval:planning -- --holdout && npm run agent:eval:dialogues && npm run agent:eval:dialogues -- --holdout && npm run agent:eval:dialogues -- --unseen && npm run agent:eval:dialogues -- --acceptance && npm run agent:eval:changes",
+    "agent:eval:quick-add": "node --import tsx scripts/agent-quick-add-eval.ts",
+    "test": "npm run test:agent"
   },
   "dependencies": {
     "@fastify/static": "^8.0.4",

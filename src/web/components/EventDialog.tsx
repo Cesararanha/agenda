@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { api, type Scope } from '../api.js';
+import type { QuickDraft } from '../../shared/quick-add.js';
 import { dateOf, timeOf } from '../../shared/dates.js';
 import { formatRrule, parseRrule } from '../../shared/recurrence.js';
 import { CATEGORIES, type Category, type Occurrence } from '../../shared/types.js';
 
 export type DialogState =
-  | { mode: 'create'; date: string; time: string; title?: string }
+  | { mode: 'create'; date: string; time: string; title?: string; draft?: QuickDraft; notice?: string; remaining?: number; suggestionId?: string }
   | { mode: 'edit'; occurrence: Occurrence };
 
 interface Props {
@@ -51,15 +52,16 @@ function buildRrule(repeat: Repeat, days: number[], until: string, date: string)
 
 export function EventDialog({ state, onClose, onSaved, onError }: Props) {
   const editing = state.mode === 'edit' ? state.occurrence : null;
+  const draft = state.mode === 'create' ? state.draft : undefined;
   const initialRepeat = useMemo(
-    () => repeatFromRrule(editing?.rrule ?? null),
-    [editing?.rrule],
+    () => repeatFromRrule(editing?.rrule ?? draft?.rrule ?? null),
+    [editing?.rrule, draft?.rrule],
   );
 
   const [title, setTitle] = useState(
-    editing?.title ?? (state.mode === 'create' ? (state.title ?? '') : ''),
+    editing?.title ?? draft?.title ?? (state.mode === 'create' ? (state.title ?? '') : ''),
   );
-  const [category, setCategory] = useState<Category>(editing?.category ?? 'outro');
+  const [category, setCategory] = useState<Category>(editing?.category ?? draft?.category ?? 'outro');
   const [allDay, setAllDay] = useState(editing?.allDay ?? false);
   const [date, setDate] = useState(
     editing ? dateOf(editing.start) : state.mode === 'create' ? state.date : '',
@@ -69,28 +71,31 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
   );
   const [endTime, setEndTime] = useState(() => {
     if (editing && !editing.allDay) return timeOf(editing.end) ?? '10:00';
+    if (draft) return draft.endTime;
     const base = state.mode === 'create' ? state.time : '09:00';
     const hour = Math.min(23, Number(base.slice(0, 2)) + 1);
     return `${String(hour).padStart(2, '0')}:${base.slice(3, 5)}`;
   });
   const [endDate, setEndDate] = useState(editing ? dateOf(editing.end) : '');
-  const [notes, setNotes] = useState(editing?.notes ?? '');
-  const [location, setLocation] = useState(editing?.location ?? '');
+  const [notes, setNotes] = useState(editing?.notes ?? draft?.notes ?? '');
+  const [location, setLocation] = useState(editing?.location ?? draft?.location ?? '');
   const [repeat, setRepeat] = useState<Repeat>(initialRepeat.repeat);
   const [days, setDays] = useState<number[]>(initialRepeat.days);
   const [until, setUntil] = useState(initialRepeat.until);
   const [scope, setScope] = useState<Scope>('this');
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const reportError = draft ? setSaveError : onError;
 
   const fromVault = editing?.source === 'vault';
   const askScope = Boolean(editing?.recurring);
   const occurrenceOnly = askScope && scope === 'this';
 
-  async function save() {
-    if (!title.trim()) return onError('Falta o titulo.');
-    if (!date) return onError('Falta a data.');
-    if (!allDay && (!startTime || !endTime || endTime <= startTime)) return onError('Informe início e fim válidos. O fim precisa ser depois do início.');
-    if (allDay && endDate && endDate < date) return onError('A data final precisa ser igual ou posterior à inicial.');
+  async function save(saveWithoutTime = false) {
+    if (!title.trim()) return reportError('Falta o titulo.');
+    if (!date) return reportError('Falta a data.');
+    if (!saveWithoutTime && !allDay && (!startTime || !endTime || endTime <= startTime)) return reportError('Informe início e fim válidos. O fim precisa ser depois do início.');
+    if (allDay && endDate && endDate < date) return reportError('A data final precisa ser igual ou posterior à inicial.');
     setBusy(true);
     try {
       const payload = {
@@ -109,11 +114,18 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         await api.update(editing.seriesId, payload, askScope ? scope : 'all', editing.occurrenceDate);
         await onSaved(`Atualizado: ${payload.title}`);
       } else {
-        await api.create(payload);
-        await onSaved(`Marcado: ${payload.title}`);
+        if (draft) {
+          await api.confirmQuickAdd({ title: payload.title, category, date,
+            time: saveWithoutTime ? '' : startTime, endTime: saveWithoutTime ? '' : endTime,
+            notes: payload.notes, location: payload.location, rrule: payload.rrule },
+          { saveWithoutTime, suggestionId: state.mode === 'create' ? state.suggestionId : undefined });
+        } else {
+          await api.create(payload);
+        }
+        await onSaved(`${saveWithoutTime ? 'Sugestão guardada' : 'Marcado'}: ${payload.title}`);
       }
     } catch (error) {
-      onError((error as Error).message);
+      reportError((error as Error).message);
     } finally {
       setBusy(false);
     }
@@ -141,6 +153,10 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
     >
       <div className="dialog" role="dialog" aria-modal="true">
         <h2>{editing ? 'Compromisso' : 'Novo compromisso'}</h2>
+
+        {state.mode === 'create' && state.notice && <p role="status">{state.notice}</p>}
+        {state.mode === 'create' && (state.remaining ?? 0) > 1 && <p>{state.remaining} propostas para revisar.</p>}
+        {saveError && <p role="alert">{saveError}</p>}
 
         {fromVault && (
           <div className="scope-ask">
@@ -207,7 +223,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
           </div>
         </div>
 
-        <div className="field">
+        {!draft && <div className="field">
           <label className="check">
             <input
               type="checkbox"
@@ -217,7 +233,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
             />
             Dia inteiro
           </label>
-        </div>
+        </div>}
 
         <div className="field row">
           <div>
@@ -246,7 +262,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
                 <input
                   id="inicio"
                   type="time"
-                  step={300}
+                  step={60}
                   value={startTime}
                   onChange={(event) => setStartTime(event.target.value)}
                 />
@@ -256,7 +272,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
                 <input
                   id="fim"
                   type="time"
-                  step={300}
+                  step={60}
                   value={endTime}
                   onChange={(event) => setEndTime(event.target.value)}
                 />
@@ -343,7 +359,10 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
           <button onClick={onClose} disabled={busy}>
             Cancelar
           </button>
-          <button className="primary" onClick={save} disabled={busy}>
+          {draft && date && !startTime && !endTime && state.mode === 'create' && !state.suggestionId && (
+            <button onClick={() => void save(true)} disabled={busy}>Guardar como sugestão</button>
+          )}
+          <button className="primary" onClick={() => void save()} disabled={busy}>
             {busy ? 'Salvando...' : 'Salvar'}
           </button>
         </div>

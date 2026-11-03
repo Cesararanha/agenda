@@ -29,7 +29,7 @@ const WEEKDAY_WORDS: Record<string, number> = {
   segunda: 1, seg: 1, 'segunda-feira': 1,
   terca: 2, ter: 2, 'terça': 2, 'terca-feira': 2, 'terça-feira': 2,
   quarta: 3, qua: 3, 'quarta-feira': 3,
-  quinta: 4, qui: 4, 'quinta-feira': 4,
+  quinta: 4, qui: 4, 'quinta-feira': 4, 'quita-feira': 4,
   sexta: 5, sex: 5, 'sexta-feira': 5,
   sabado: 6, sab: 6, 'sábado': 6,
 };
@@ -40,7 +40,8 @@ const CATEGORY_WORDS: Record<string, Category> = {
   reuniao: 'trabalho', daily: 'trabalho', planning: 'trabalho',
   colete: 'projeto', projeto: 'projeto', freela: 'projeto',
   estudar: 'estudo', estudo: 'estudo', curso: 'estudo',
-  academia: 'saude', treino: 'saude', medico: 'saude', dentista: 'saude',
+  academia: 'saude', treino: 'saude', medico: 'saude', dentista: 'saude', ortopedista: 'saude', consulta: 'saude',
+  exame: 'saude', fisioterapia: 'saude', medica: 'saude',
 };
 
 function stripAccents(s: string): string {
@@ -83,7 +84,11 @@ export function inferCategory(text: string): Category | undefined {
 
 export function parseQuickAdd(input: string, tz = 'America/Maceio'): QuickAdd {
   const base = today(tz);
-  let text = input.trim().replace(/^(add|adicionar|criar|marcar|agendar)\s+/i, '');
+  let text = input.trim()
+    .replace(/^(?:quero\s+|preciso\s+)?(?:add|adicionar|criar|marcar|agendar|marque|agende)\s+(?:(?:o|a|um|uma)\s+)?/i, '')
+    .split(/[.!;]\s+|[,.]?\s+(?=tenho que\s+(?:sair|levar|chegar))/i)[0]!
+    .replace(/\bpara\s+(?=(?:amanh[ãa]|hoje|(?:segund|ter[çc]|quart|quint|sext)a|dia|\d)\b)/i, '')
+    .replace(/\bquita[ -]feira\b/i, 'quinta-feira');
   let date: DateStr | null = null;
   let startTime: string | null = null;
   let endTime: string | null = null;
@@ -132,12 +137,10 @@ export function parseQuickAdd(input: string, tz = 'America/Maceio'): QuickAdd {
     if (/\bhoje\b/.test(plain())) {
       consume(/\bhoje\b/i);
       date = base;
-    } else if (/\b(amanha|amanhã)\b/.test(plain())) {
-      consume(/\b(amanha|amanhã)\b/i);
-      date = addDays(base, 1);
-    } else if (/\b(depois de amanha|depois de amanhã)\b/.test(plain())) {
-      consume(/\b(depois de amanha|depois de amanhã)\b/i);
+    } else if (consume(/\bdepois de amanh[ãa](?!\p{L})/iu)) {
       date = addDays(base, 2);
+    } else if (consume(/\bamanh[ãa](?!\p{L})/iu)) {
+      date = addDays(base, 1);
     } else {
       // todos os dias da semana citados: 'seg qua sex' quer dizer uma rotina
       const mentioned: number[] = [];
@@ -167,17 +170,17 @@ export function parseQuickAdd(input: string, tz = 'America/Maceio'): QuickAdd {
   }
 
   // intervalo de hora: "14h-16h", "14:00 as 16:00"
-  const range = consume(/\b(\d{1,2}(?:[:h]\d{2})?h?)\s*(?:-|as|às|até|ate|a)\s*(\d{1,2}(?:[:h]\d{2})?h?)\b/i);
+  const range = consume(/(?:\bdas\s+)?\b(\d{1,2}(?:[:h]\d{2})?h?)\s*(?:-|as|às|até|ate|a)\s*(\d{1,2}(?:[:h]\d{2})?h?)\b/i);
   if (range) {
-    const parts = range.trim().split(/\s*(?:-|as|às|até|ate|a)\s*/i);
+    const parts = range.trim().replace(/^das\s+/i, '').split(/\s*(?:-|as|às|até|ate|a)\s*/i);
     startTime = normalizeTime(parts[0]?.trim() ?? '');
     endTime = normalizeTime(parts[1]?.trim() ?? '');
   } else {
-    const single = consume(/\b(\d{1,2}[:h]\d{2}|\d{1,2}h)\b/i);
-    if (single) startTime = normalizeTime(single.trim());
+    const single = consume(/(?:(?<!\p{L})(?:às|as|das)\s+)?\b(\d{1,2}[:h]\d{2}|\d{1,2}h)\b/iu);
+    if (single) startTime = normalizeTime(single.trim().replace(/^(?:às|as|das)\s+/i, ''));
   }
 
-  const title = text.replace(/^[\s,:;-]+|[\s,:;-]+$/g, '').replace(/\s+/g, ' ') || 'Sem titulo';
+  const title = text.replace(/^tenho que\s+/i, '').replace(/\s+para\s*$/i, '').replace(/^[\s,:;-]+|[\s,:;-]+$/g, '').replace(/\s+/g, ' ') || 'Sem titulo';
 
   const category = inferCategory(title);
 

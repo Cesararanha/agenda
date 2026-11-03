@@ -16,6 +16,7 @@ import {
   startOfWeek,
   today as todayIn,
 } from '../shared/dates.js';
+import type { QuickDraft } from '../shared/quick-add.js';
 import type { Occurrence } from '../shared/types.js';
 
 type View = 'dia' | 'semana' | 'mes';
@@ -88,6 +89,8 @@ export function App() {
     return window.innerWidth > 560;
   });
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [quickQueue, setQuickQueue] = useState<QuickDraft[]>([]);
+  const [quickNotice, setQuickNotice] = useState('');
   const [message, setMessage] = useState<{ text: string; kind: 'info' | 'error' } | null>(null);
   const [quick, setQuick] = useState('');
   const [busy, setBusy] = useState(false);
@@ -167,13 +170,16 @@ export function App() {
     if (!text) return;
     setBusy(true);
     try {
-      const { evento } = await api.quickAdd(text);
+      const proposal = await api.quickAdd(text);
+      const notice = [proposal.notice, proposal.question, proposal.conflict].filter(Boolean).join(' ');
+      if (!proposal.drafts.length) {
+        setMessage({ text: notice, kind: 'info' });
+        return;
+      }
       setQuick('');
-      setMessage({
-        text: `Marcado: ${evento.title} em ${formatDateBR(evento.occurrenceDate)}${evento.allDay ? ' (dia inteiro)' : ` as ${evento.start.slice(11, 16)}`}`,
-        kind: 'info',
-      });
-      await load();
+      setMessage(null);
+      setQuickNotice(notice);
+      setQuickQueue(proposal.drafts);
     } catch (error) {
       setMessage({ text: (error as Error).message, kind: 'error' });
     } finally {
@@ -293,8 +299,13 @@ export function App() {
                       setDialog({
                         mode: 'create',
                         date: s.occurrenceDate,
-                        time: '09:00',
+                        time: s.source === 'app' || s.source === 'whatsapp' ? '' : '09:00',
                         title: tituloCurto(s.title),
+                        ...(s.source === 'app' || s.source === 'whatsapp' ? {
+                          suggestionId: s.seriesId,
+                          draft: { title: s.title, date: s.occurrenceDate, time: '', endTime: '',
+                            category: s.category, notes: s.notes, location: s.location, rrule: s.rrule },
+                        } : {}),
                       })
                     }
                   >
@@ -339,6 +350,21 @@ export function App() {
           />
         )}
       </main>
+
+      {quickQueue[0] && (
+        <EventDialog
+          key={quickQueue.length}
+          state={{ mode: 'create', date: quickQueue[0].date, time: quickQueue[0].time,
+            draft: quickQueue[0], notice: quickNotice, remaining: quickQueue.length }}
+          onClose={() => setQuickQueue([])}
+          onSaved={async (text) => {
+            setQuickQueue((drafts) => drafts.slice(1));
+            if (text) setMessage({ text, kind: 'info' });
+            await load();
+          }}
+          onError={(text) => setMessage({ text, kind: 'error' })}
+        />
+      )}
 
       {dialog && (
         <EventDialog

@@ -1,3 +1,4 @@
+import { quickFormat, quickPrompt, type quickModelInput } from '../core/quick-add.js';
 import { SYSTEM_PROMPT, outputFormat } from './contract.js';
 import type { Snapshot } from './fixtures.js';
 import { titleFormat, titlePrompt } from '../core/title-interpretation.js';
@@ -49,6 +50,10 @@ export class Ollama {
       { role: 'user', content: 'Avalie o pedido abaixo conforme o contrato, sem executar ações.\n'
         + JSON.stringify({ context: snapshot, request: input }) }];
     return this.generate(messages, outputFormat);
+  }
+  async extractQuickAdd(blocks: ReturnType<typeof quickModelInput>) {
+    return this.generate([{ role: 'system', content: quickPrompt },
+      { role: 'user', content: JSON.stringify({ blocks }) }], quickFormat, 800);
   }
   async extractTitle(input: string) {
     return this.generate([{ role: 'system', content: titlePrompt }, { role: 'user', content: JSON.stringify({ request: input }) }], titleFormat);

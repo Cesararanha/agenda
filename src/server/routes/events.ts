@@ -11,7 +11,7 @@ import {
   type PatchInput,
 } from '../events.js';
 import { config } from '../config.js';
-import { parseQuickAdd } from '../nlp.js';
+import { proposeQuickAdd, quickConfirmation, quickInput, saveQuickAdd } from '../agent/quick-add.js';
 import {
   addDays,
   endOfMonth,
@@ -122,24 +122,23 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send(created);
   });
 
-  /** Marca a partir de uma frase solta: "amanha 14h dentista". */
   app.post('/api/quick-add', async (request, reply) => {
-    const { text, source } = (request.body ?? {}) as { text?: string; source?: EventSource };
-    if (!text?.trim()) return reply.code(400).send({ error: 'texto vazio' });
-    const parsed = parseQuickAdd(text, config.tz);
-    const created = createEvent(
-      {
-        title: parsed.title,
-        start: parsed.start,
-        end: parsed.end,
-        allDay: parsed.allDay,
-        category: parsed.category,
-        rrule: parsed.rrule,
-        source: source ?? 'app',
-      },
-      source ?? 'app',
-    );
-    return reply.code(201).send({ interpretado: parsed, evento: created });
+    const parsed = quickInput.safeParse((request.body as { text?: unknown } | null)?.text);
+    if (!parsed.success) return reply.code(400).send({ error: 'Envie uma frase de até 1500 caracteres.' });
+    return proposeQuickAdd(parsed.data);
+  });
+
+  app.post('/api/quick-add/confirm', async (request, reply) => {
+    const body = request.body as { drafts?: unknown; saveWithoutTime?: unknown; suggestionId?: unknown } | null;
+    const parsed = quickConfirmation.safeParse(body?.drafts);
+    if (!parsed.success) return reply.code(400).send({ error: 'Confira os campos do compromisso.' });
+    const suggestionId = body?.suggestionId;
+    if (suggestionId !== undefined && (typeof suggestionId !== 'string' || parsed.data.length !== 1 || !parsed.data[0]?.time)) {
+      return reply.code(400).send({ error: 'Escolha um horário para a sugestão.' });
+    }
+    return reply.code(201).send({ events: saveQuickAdd(parsed.data, 'app', {
+      allowSuggestions: body?.saveWithoutTime === true, replaceSuggestion: suggestionId,
+    }) });
   });
 
   app.patch<{ Params: { id: string }; Querystring: ScopeQuery }>(

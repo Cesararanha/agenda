@@ -21,7 +21,7 @@ const child = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/ser
   cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env,
     AGENDA_DB: path.join(temp, 'test.db'), AGENDA_HOST: '127.0.0.1', AGENDA_PORT: String(port),
     AGENDA_VAULTS: '', AGENDA_TOKEN: token, AGENDA_ALLOW_LOCAL: '1', AGENDA_SERVE_WEB: '1',
-    AGENDA_AGENT_SANDBOX: '0',
+    AGENDA_AGENT_SANDBOX: '0', AGENT_OLLAMA_URL: base,
     WHATSAPP_ACCESS_TOKEN: '', WHATSAPP_APP_SECRET: '', AGENDA_LOG_LEVEL: 'silent',
   },
 });
@@ -74,8 +74,57 @@ try {
   await request(`/api/events/${seriesId}?scope=this&occurrence=2030-05-15`, 'DELETE');
   assert.equal((await request('/api/events?from=2030-06-01&to=2030-06-01')).body.events.length, 0);
   const quick = await request('/api/quick-add', 'POST', { text: '2030-05-17 14h-15h Oficina fictícia' });
-  assert.equal(quick.status, 201);
-  assert.equal(quick.body.evento.start, '2030-05-17T14:00');
+  assert.equal(quick.status, 200);
+  assert.match(quick.body.notice, /jeito simples/);
+  assert.equal(quick.body.drafts[0].time, '14:00');
+  const day = (date) => request(`/api/events?from=${date}&to=${date}`);
+  assert.equal((await day('2030-05-17')).body.events.length, 0);
+  const saved = await request('/api/quick-add/confirm', 'POST', { drafts: quick.body.drafts });
+  assert.equal(saved.status, 201);
+  assert.equal(saved.body.events[0].start, '2030-05-17T14:00');
+  assert.equal((await request('/api/quick-add/confirm', 'POST', { drafts: quick.body.drafts })).status, 400);
+  const missing = await request('/api/quick-add', 'POST', { text: '2030-05-18 ligar pro coordenador' });
+  assert.equal(missing.body.drafts[0].time, '');
+  assert.equal((await request('/api/quick-add/confirm', 'POST', { drafts: missing.body.drafts })).status, 400);
+  const suggestions = (date) => request(`/api/suggestions?from=${date}&to=${date}`);
+  assert.equal((await suggestions('2030-05-18')).body.suggestions.length, 0);
+  const untimed = await request('/api/quick-add/confirm', 'POST', { drafts: missing.body.drafts, saveWithoutTime: true });
+  assert.equal(untimed.status, 201);
+  assert.equal(untimed.body.events[0].suggestion, true);
+  assert.equal((await day('2030-05-18')).body.events.length, 0);
+  assert.equal((await suggestions('2030-05-18')).body.suggestions.length, 1);
+  const scheduled = await request('/api/quick-add/confirm', 'POST', {
+    drafts: [{ ...missing.body.drafts[0], time: '12:00', endTime: '13:00' }],
+    suggestionId: untimed.body.events[0].seriesId,
+  });
+  assert.equal(scheduled.status, 201);
+  assert.equal((await suggestions('2030-05-18')).body.suggestions.length, 0);
+  assert.equal((await day('2030-05-18')).body.events.length, 1);
+  const whatsapp = (text) => request('/api/whatsapp/simulate', 'POST', { text });
+  const proposed = await whatsapp('2030-05-18 9h consulta e depois 15h exame');
+  const code = proposed.body.reply.match(/confirmo [a-f0-9]{12}/)?.[0];
+  assert.ok(code, proposed.body.reply);
+  assert.match(proposed.body.reply, /Consulta/i);
+  assert.match(proposed.body.reply, /Exame/i);
+  assert.equal((await day('2030-05-18')).body.events.length, 1);
+  assert.match((await whatsapp('sim')).body.reply, /código/);
+  assert.match((await whatsapp(code)).body.reply, /Marcado/);
+  assert.match((await whatsapp(code)).body.reply, /já foi confirmada/);
+  assert.equal((await day('2030-05-18')).body.events.length, 3);
+  const untimedWhatsapp = await whatsapp('2030-05-20 levar documentos');
+  assert.match(untimedWhatsapp.body.reply, /sugestão sem horário/);
+  const untimedCode = untimedWhatsapp.body.reply.match(/confirmo [a-f0-9]{12}/)?.[0];
+  assert.ok(untimedCode, untimedWhatsapp.body.reply);
+  assert.equal((await suggestions('2030-05-20')).body.suggestions.length, 0);
+  assert.match((await whatsapp(untimedCode)).body.reply, /Sugestão guardada/);
+  assert.equal((await day('2030-05-20')).body.events.length, 0);
+  assert.equal((await suggestions('2030-05-20')).body.suggestions.length, 1);
+  const contested = await whatsapp('2030-05-19 9h ensaio e depois 15h leitura');
+  const contestedCode = contested.body.reply.match(/confirmo [a-f0-9]{12}/)?.[0];
+  assert.ok(contestedCode, contested.body.reply);
+  await request('/api/events', 'POST', { title: 'Conflito fictício', start: '2030-05-19T15:00' });
+  assert.equal((await whatsapp(contestedCode)).status, 400);
+  assert.equal((await day('2030-05-19')).body.events.length, 1);
   const finite = (await request('/api/events', 'POST', { title: 'Rotina finita fictícia', start: '2030-06-10T10:00', end: '2030-06-10T11:00', rrule: 'FREQ=DAILY;COUNT=5' })).body.seriesId;
   await request(`/api/events/${finite}?scope=this&occurrence=2030-06-13`, 'PATCH', { start: '2030-06-13T15:00', end: '2030-06-13T16:00' });
   await request(`/api/events/${finite}?scope=this&occurrence=2030-06-14`, 'DELETE');

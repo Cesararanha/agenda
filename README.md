@@ -85,9 +85,14 @@ seg qua sex 7h academia
 todo dia 8h daily
 ```
 
-Ele entende `hoje`, `amanha`, dia da semana, `dd/mm`, `AAAA-MM-DD`, `14h`, `14:30`,
-`14h-16h`, `toda <dia>`, `todo dia` e varios dias soltos (`seg qua sex` vira rotina
-semanal). A categoria sai de palavras como aula, prova, academia, reuniao, Colete.
+A agenda abre uma proposta para cada compromisso. Confira os campos e clique em
+**Salvar**. Se faltar horário, preencha o campo em branco ou clique em
+**Guardar como sugestão**. Se faltar só
+o fim, a proposta usa uma hora de duração, que você pode editar.
+
+Com `npm run agent:serve` rodando, a barra e o WhatsApp usam o Qwen local. Se o
+modelo estiver indisponível ou exceder oito segundos, a agenda usa o parser
+simples e mostra um aviso. Veja o [fluxo de confirmação](docs/agente-conversa.md#criar-compromissos-na-agenda).
 
 **Arrastar** um bloco na semana muda horario e dia. Num compromisso que repete,
 arrastar mexe so naquele dia; o resto se escolhe no dialogo (So esse dia / Daqui pra
@@ -168,7 +173,9 @@ entao a agenda precisa estar rodando. Ferramentas: `agenda_contexto`, `agenda_li
 `agenda_remover`, `agenda_resumo`, `agenda_sincronizar_vault`.
 
 Pra IA que nao fala MCP, a API REST resolve: `GET /api/summary?from=&to=` devolve a
-agenda em texto, e `POST /api/quick-add {"text": "..."}` marca.
+agenda em texto. `POST /api/quick-add` com `{"text": "..."}` devolve propostas em
+`drafts`. Depois de revisar, envie `{"drafts": [...]}` a
+`POST /api/quick-add/confirm` para salvar.
 
 ---
 

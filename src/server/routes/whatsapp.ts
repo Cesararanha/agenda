@@ -13,10 +13,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
 import { audit } from '../db.js';
-import { createEvent, listOccurrences, summarize } from '../events.js';
-import { parseQuickAdd, parseRangeQuery } from '../nlp.js';
-import { describeRrule, parseRrule } from '../../shared/recurrence.js';
-import { dateOf, formatDateBR, timeOf, today } from '../../shared/dates.js';
+import { summarize } from '../events.js';
+import { parseRangeQuery } from '../nlp.js';
+import { whatsappProposal } from '../agent/whatsapp-proposals.js';
+import { formatDateBR, today } from '../../shared/dates.js';
 
 const GRAPH_VERSION = 'v21.0';
 
@@ -31,6 +31,7 @@ const AJUDA = [
   '  27/10 15h-17h estudar IA',
   '  toda terca 19h aula de IA',
   '  seg qua sex 7h academia',
+  'Confira a proposta e responda *confirmo* com o código para salvar.',
   '',
   '*ajuda* mostra isso de novo.',
 ].join('\n');
@@ -93,7 +94,7 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
 }
 
 /** Decide o que uma mensagem significa e devolve a resposta em texto. */
-export function handleMessage(text: string): string {
+export async function handleMessage(text: string, sender: string, messageId?: string): Promise<string> {
   const trimmed = text.trim();
   if (!trimmed) return AJUDA;
   if (/^(ajuda|help|\?|menu)$/i.test(trimmed)) return AJUDA;
@@ -104,29 +105,7 @@ export function handleMessage(text: string): string {
     return `*${range.label}* (${formatDateBR(range.from)}${range.from === range.to ? '' : ` a ${formatDateBR(range.to)}`})\n\n${resumo}`;
   }
 
-  const parsed = parseQuickAdd(trimmed, config.tz);
-  if (parsed.title === 'Sem titulo') return AJUDA;
-
-  const created = createEvent(
-    {
-      title: parsed.title,
-      start: parsed.start,
-      end: parsed.end,
-      allDay: parsed.allDay,
-      category: parsed.category,
-      rrule: parsed.rrule,
-      source: 'whatsapp',
-    },
-    'whatsapp',
-  );
-
-  const quando = created.allDay
-    ? `${formatDateBR(dateOf(created.start))}, dia inteiro`
-    : `${formatDateBR(dateOf(created.start))} ${timeOf(created.start)}-${timeOf(created.end)}`;
-  const repete = created.rrule ? `\nRepete: ${describeRrule(parseRrule(created.rrule))}` : '';
-  const mesmoDia = listOccurrences(dateOf(created.start), dateOf(created.start)).length;
-
-  return `Marcado: *${created.title}*\n${quando}${repete}\n\n${mesmoDia} compromisso(s) nesse dia.`;
+  return whatsappProposal(trimmed, sender, messageId);
 }
 
 /**
@@ -184,7 +163,7 @@ interface WebhookBody {
     changes?: Array<{
       field?: string;
       value?: {
-        messages?: Array<{ from?: string; type?: string; text?: { body?: string } }>;
+        messages?: Array<{ id?: string; from?: string; type?: string; text?: { body?: string } }>;
         statuses?: WebhookStatus[];
       };
     }>;
@@ -266,7 +245,8 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
         continue;
       }
       try {
-        const answer = handleMessage(message.text.body);
+        const canonical = variacoesNumero(from).reduce((shortest, n) => n.length < shortest.length ? n : shortest);
+        const answer = await handleMessage(message.text.body, canonical, message.id);
         audit('whatsapp', 'message', { from, text: message.text.body });
         await sendWhatsApp(from, answer);
       } catch (error) {
@@ -280,6 +260,6 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
   /** Teste local do interpretador, sem precisar da Meta. */
   app.post('/api/whatsapp/simulate', async (request) => {
     const { text } = (request.body ?? {}) as { text?: string };
-    return { today: today(config.tz), reply: handleMessage(String(text ?? '')) };
+    return { today: today(config.tz), reply: await handleMessage(String(text ?? ''), 'simulate') };
   });
 }

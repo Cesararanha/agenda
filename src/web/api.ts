@@ -1,3 +1,4 @@
+import type { QuickDraft, QuickProposal } from '../shared/quick-add.js';
 import type { Occurrence } from '../shared/types.js';
 import type { DemoReply, DemoPanel, DemoTurn } from '../shared/agent.js';
 
@@ -83,7 +84,10 @@ export const api = {
   create: (payload: EventPayload) => request<Occurrence>('POST', '/api/events', payload),
 
   quickAdd: (text: string) =>
-    request<{ evento: Occurrence }>('POST', '/api/quick-add', { text }),
+    request<QuickProposal>('POST', '/api/quick-add', { text }),
+
+  confirmQuickAdd: (draft: QuickDraft, options?: { saveWithoutTime?: boolean; suggestionId?: string }) =>
+    request<{ events: Occurrence[] }>('POST', '/api/quick-add/confirm', { drafts: [draft], ...options }),
 
   update: (id: string, payload: Partial<EventPayload>, scope: Scope, occurrence?: string) => {
     const params = new URLSearchParams({ scope });

@@ -11,6 +11,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { parseQuickAdd } from '../server/nlp.js';
 
 const BASE_URL = (process.env.AGENDA_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, '');
 const TOKEN = process.env.AGENDA_TOKEN ?? '';
@@ -107,7 +108,12 @@ server.tool(
   'agenda_criar_texto',
   'Marca um compromisso a partir de uma frase solta em portugues, como "amanha 14h dentista" ou "toda terca 19h aula de IA".',
   { texto: z.string().min(1) },
-  async ({ texto }) => asText(await call('POST', '/api/quick-add', { text: texto, source: 'ia' })),
+  async ({ texto }) => {
+    const { tz } = await call<{ tz: string }>('GET', '/api/meta');
+    const interpretado = parseQuickAdd(texto, tz);
+    const evento = await call('POST', '/api/events', { ...interpretado, source: 'ia' });
+    return asText({ interpretado, evento });
+  },
 );
 
 server.tool(

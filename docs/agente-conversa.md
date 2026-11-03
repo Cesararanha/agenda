@@ -348,3 +348,26 @@ npm run agent:eval:changes
 A integração usa modelo simulado e SQLite temporário. A avaliação usa Qwen real
 com o ciclo completo de preparar, confirmar, consultar e desfazer em API isolada.
 Método e limites estão no [registro de alterações conversacionais](avaliacoes/2026-10-29-alteracoes-conversa.md).
+
+
+## Criar compromissos na agenda
+
+Na agenda da porta 8787, a barra **Marcar** e o WhatsApp enviam a frase ao
+mesmo fluxo de criação. O código separa os compromissos, resolve os dias, valida
+os horários e determina a repetição. O Qwen local extrai título, categoria, local
+e nota. O código confere o título contra a frase original e verifica se os
+horários coincidem com compromissos existentes. Para séries, a verificação cobre
+os primeiros 90 dias. Um fim omitido recebe uma proposta de duração de uma hora.
+
+Na PWA, cada compromisso abre um diálogo editável com botão **Salvar**. Quando
+falta o início, o campo fica em branco e você pode guardar o item como sugestão
+se já houver uma data. No WhatsApp, responda `confirmo CÓDIGO` em até 30 minutos
+para gravar a proposta de uma vez. Itens com data e sem horário ficam na lista
+de sugestões, fora do calendário. Para marcar com horário, envie a frase
+completa com esse dado ou use **Dar horário** na lista. A confirmação confere
+os conflitos outra vez e o código só pode ser usado uma vez pelo remetente.
+
+Com o servidor local do Ollama indisponível ou após oito segundos, a agenda
+usa o parser simples e avisa na proposta. O comando `npm run agent:serve`
+mantém o servidor local em primeiro plano. Rode `npm run agent:eval:quick-add`
+para repetir a avaliação do Qwen com frases fictícias, sem acessar o SQLite.
