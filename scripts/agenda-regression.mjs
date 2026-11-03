@@ -73,6 +73,10 @@ try {
   assert.equal(movedLater.length, 1, 'exceção movida para depois do fim da série precisa aparecer');
   await request(`/api/events/${seriesId}?scope=this&occurrence=2030-05-15`, 'DELETE');
   assert.equal((await request('/api/events?from=2030-06-01&to=2030-06-01')).body.events.length, 0);
+  // Fora da demo, data relativa parte do relógio real.
+  const tomorrow = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Maceio' }).format(new Date(Date.now() + 86400000));
+  const relative = await request('/api/quick-add', 'POST', { text: 'amanhã 14h oficina fictícia' });
+  assert.equal(relative.body.drafts[0].date, tomorrow);
   const quick = await request('/api/quick-add', 'POST', { text: '2030-05-17 14h-15h Oficina fictícia' });
   assert.equal(quick.status, 200);
   assert.match(quick.body.notice, /jeito simples/);

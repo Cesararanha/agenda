@@ -99,7 +99,7 @@ export function quickConflict(drafts: QuickDraft[]): string | undefined {
 }
 
 export async function proposeQuickAdd(input: string): Promise<QuickProposal> {
-  const proposal = await interpretQuickAdd(input, config.agentDemoNow ?? now(config.tz));
+  const proposal = await interpretQuickAdd(input, config.agentDemoNow || now(config.tz));
   return { ...proposal, conflict: quickConflict(proposal.drafts) };
 }
 
