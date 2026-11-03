@@ -19,16 +19,20 @@ flowchart TD
   UI[Conversa e painel em React] --> API[API Fastify e histórico]
   API --> Intent[Interpretação em TypeScript]
   Intent --> Calendar[Consultas e ferramentas de agenda]
+  Intent --> LLM
   Calendar --> SQL[(SQLite: eventos, propostas e recibos)]
   Intent --> Context[Leitor de fontes locais permitidas]
   Context --> LLM[Ollama e Qwen3:4b pré-treinado]
   LLM --> Validation[Validação de formato e fontes]
+  Validation --> Calendar
   Validation --> UI
   Calendar --> UI
 ```
 
-As consultas de calendário e os planos semanais são interpretados por código.
-O LLM responde a consultas com contexto selecionado; não escolhe caminhos de
+Os caminhos diretos de calendário e planos semanais são interpretados por código.
+O LLM identifica a intenção de pedidos novos, extrai títulos e blocos de planejamento
+e responde a consultas com contexto selecionado. As saídas são validadas pelo código;
+o modelo não escolhe caminhos de
 arquivos e não recebe ferramentas de escrita. A recuperação atual usa rotas e
 arquivos explicitamente permitidos, sem busca vetorial.
 
@@ -44,7 +48,7 @@ originais enquanto não houver alterações posteriores.
 |---|---|---|
 | Execução local | Modelo baixado e inferência via Ollama em loopback | Não demonstra treinamento ou disponibilidade remota |
 | Avaliação do LLM | Duas rodadas arquivadas; 7/16 aprovações com exemplos no prompt | Amostra pequena; ainda há falhas críticas do modelo |
-| Software e contratos | 85 testes unitários registrados nesta etapa | Não equivalem à qualidade do LLM em 85 pedidos reais |
+| Software e contratos | 147 testes unitários, além das cinco integrações e da compilação | Não equivalem à qualidade do LLM em 147 pedidos reais |
 | Persistência e ferramentas | Integrações de conversa, API e plano semanal | Exercitadas com fontes e bancos fictícios |
 | Alterações em lote | Teste com falha no quinto registro, rollback, reinício, concorrência e desfazer | Não habilita escrita no banco pessoal |
 | Preservação da base | Regressão da agenda normal, incluindo recorrências e exceções | Não substitui validação de um ambiente de produção |
@@ -128,17 +132,16 @@ uma publicação não substitui a capacidade de explicar e modificar a implement
 - A diferença entre inferência, exemplos no prompt, recuperação de contexto e fine-tuning.
 - Por que a agenda usa SQLite e por que as notas ficam em arquivos separados.
 - Como confirmação, versão, recibo e transação evitam alterações incorretas.
-- Por que 85 testes do software e 7/16 na avaliação do modelo medem coisas diferentes.
+- Por que os testes do software e 7/16 na avaliação original do modelo medem coisas diferentes.
 - Como diagnosticar uma pergunta nova que falhou e avaliar se a correção generaliza.
 
-## Próximo incremento
+## Instrumentação e fechamento local
 
-Expor por resposta o caminho utilizado, fontes, latência e, quando houver
-inferência, tokens e carregamento do modelo. Essa instrumentação ainda não está
-implementada na tela. Ela permitirá explicar e medir o comportamento antes de
-ampliar a interpretação por LLM ou comparar outras configurações.
+Cada resposta já expõe o caminho utilizado, fontes, latência e, quando houver
+inferência, tokens e carregamento do modelo. O histórico preserva as medições.
+Os caminhos de linguagem foram ampliados e avaliados separadamente do contrato
+original de 7/16. A conferência atual está no
+[fechamento da entrega local](avaliacoes/2026-10-29-entrega-local.md).
 
-Depois disso, ampliar a avaliação com pedidos inéditos e documentar o que
-melhorou e o que continua falhando. Vídeo, publicação no LinkedIn e eventual
-publicação do repositório são entregas posteriores; este documento não publica
-conteúdo nem muda a visibilidade do repositório.
+Vídeo e publicação no LinkedIn continuam para uma etapa posterior. Este documento
+registra a implementação e não publica conteúdo nem muda a visibilidade do repositório.

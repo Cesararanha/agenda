@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
-export const intents = ['calendar_read', 'tasks_read', 'schedule', 'study_suggestion', 'memory_read', 'continue', 'clarify', 'unsupported'] as const;
+export const intents = ['calendar_read', 'tasks_read', 'schedule', 'study_suggestion', 'memory_read', 'manage_event', 'continue', 'clarify', 'unsupported'] as const;
 export const intentSchema = z.object({ intent: z.enum(intents) }).strict();
 export const intentFormat = { type: 'object', additionalProperties: false, required: ['intent'], properties: { intent: { type: 'string', enum: intents } } };
 export const intentPrompt = `Classifique a intenção da mensagem. Retorne somente JSON {"intent":"uma das opções"}.
 calendar_read: consultar compromissos, horários ocupados/livres ou o calendário.
 tasks_read: consultar o que falta fazer, pendências ou lista de tarefas.
 schedule: pedir para reservar, colocar ou organizar compromissos na agenda.
+manage_event: pedir para mover, reagendar ou cancelar um compromisso que já existe.
 study_suggestion: pedir sugestão de um horário/bloco de estudo.
 memory_read: perguntar por uma preferência ou informação pessoal já conhecida.
 continue: fornecer um dado complementar ou correção, como título, dia ou horário, sem fazer uma nova solicitação. Uma consulta continua sendo calendar_read ou tasks_read e tem prioridade sobre continue.

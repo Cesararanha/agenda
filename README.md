@@ -12,6 +12,10 @@ pedidos de registro e separa blocos de planos com vários compromissos. Os campo
 interpretados passam por validação independente e os planos aguardam confirmação.
 Quem grava os compromissos é a API no SQLite;
 o modelo não recebe acesso direto à escrita.
+Pedidos para mover ou cancelar um compromisso existente identificam o evento
+pelo título e dia, mostram uma prévia e aguardam confirmação. Títulos repetidos
+exigem escolha; uma alteração confirmada pode ser desfeita enquanto a agenda
+não receber outras mudanças. Veja a [avaliação desse fluxo](docs/avaliacoes/2026-10-29-alteracoes-conversa.md).
 
 - [Apresentação para portfólio: arquitetura, evidências e roteiro](docs/portfolio.md).
 - [Como abrir a demonstração e quais pedidos experimentar](docs/agente-conversa.md).
@@ -21,6 +25,17 @@ Com o ambiente preparado, `npm run agent:app` abre a demonstração em
 `http://127.0.0.1:8790`, sem exigir o vault pessoal. O restante deste README
 documenta a agenda que serve de base e suas integrações originais. Essas
 integrações não são habilitadas na demonstração do agente.
+
+Para conferir a entrega local completa com dados fictícios:
+
+```bash
+npm run agent:verify          # tipos, testes, cinco integrações e build
+npm run agent:verify:model    # avaliações dos fluxos com o Qwen local disponível
+```
+
+Os comandos não habilitam escrita na agenda pessoal. Os resultados observados,
+os fluxos conferidos na interface e os limites estão no
+[fechamento da entrega local](docs/avaliacoes/2026-10-29-entrega-local.md).
 
 ## Agenda que serve de base
 
@@ -215,7 +230,8 @@ bancos separados, regra intacta.
 
 A fase 1 tem um avaliador local por linha de comando com Ollama e `qwen3:4b`,
 usando somente dados fictícios. Consulte [preparo, execução e limites do piloto](docs/agente-piloto.md).
-O piloto não altera as rotas, telas ou dados da agenda.
+O avaliador do piloto é isolado. A demonstração do app usa as rotas de sandbox
+descritas abaixo, com banco fictício separado.
 
 O [núcleo em desenvolvimento](docs/agente-nucleo.md) acrescenta controles de
 registro e confirmação, contexto local em modo de leitura e demonstrações

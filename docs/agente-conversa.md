@@ -144,6 +144,19 @@ se perca depois do commit. Retentativas de rede exigem ação do usuário.
 
 ## Validação e limites atuais
 
+A conferência completa da entrega local, incluindo os fluxos pela interface e
+as correções de séries finitas, está no
+[fechamento de 29/10](avaliacoes/2026-10-29-entrega-local.md).
+
+```bash
+npm run agent:verify
+npm run agent:verify:model
+```
+
+O primeiro comando verifica software e integrações com bancos temporários. O
+segundo avalia os fluxos com o Qwen local disponível, incluindo os seis pedidos
+novos do conjunto `--acceptance`. Eles não habilitam escrita em dados pessoais.
+
 ```bash
 npm run typecheck
 npm run test:agent
@@ -156,7 +169,7 @@ npm run agent:eval:language -- --with-model
 npm run agent:eval:language -- --with-model --holdout
 ```
 
-Foram aprovados 133 testes do avaliador, núcleo e recorrência, a integração da conversa com
+Foram aprovados 147 testes do avaliador, núcleo e recorrência, a integração da conversa com
 modelo fictício, a integração com SQLite e a regressão da agenda normal.
 Na interface com Ollama real, foram conferidos: consulta da preferência com fonte,
 pedido incompleto, registro, conflito, sugestão pendente, confirmação, calendário
@@ -276,3 +289,62 @@ npm run agent:eval:dialogues
 npm run agent:eval:dialogues -- --holdout
 npm run agent:eval:dialogues -- --unseen
 ```
+
+O ciclo de preparar pela conversa, confirmar, editar no calendário e consultar
+o horário atualizado foi conferido com o modelo real e passou a integrar a
+regressão automática. A edição preserva o ID e não duplica o compromisso. Os
+títulos acentuados do interpretador direto também foram corrigidos. Veja a
+[verificação de sincronização de 29/10](avaliacoes/2026-10-29-sincronizacao.md).
+
+No calendário, editar “Daqui pra frente” preserva o limite COUNT ou a data UNTIL
+quando a repetição é mantida. Exceções e exclusões futuras acompanham a nova
+parte da série, e uma falha desfaz a divisão inteira. Mudanças incompatíveis com
+exceções recebem orientação antes de salvar. A edição de uma ocorrência deixa
+explícito quais campos exigem um escopo maior.
+
+## Alterar e cancelar pela conversa
+
+O agente procura compromissos existentes pelo título e dia. O Qwen extrai trechos
+do pedido; o código resolve as datas e encontra os candidatos na agenda fictícia.
+IDs e duração não são escolhidos pelo modelo.
+
+```text
+Mude a oficina de desenho de hoje para as 11h
+Mude para 12h
+Pode confirmar
+Desfaça a alteração
+```
+
+Revisar o horário cancela a prévia anterior. Informar só o novo início mantém
+a duração existente, visível na prévia. Para mudar apenas o dia, o agente mantém
+horário e duração. Mover ou cancelar um registro existente sempre pede confirmação.
+
+```text
+Cancele a oficina de desenho de hoje
+Escolho a opção 2
+Pode cancelar
+Desfaça a alteração
+```
+
+Títulos repetidos mostram horários e botões numerados para escolha. Se faltar o
+dia, responda somente a data pedida. Consultas intermediárias preservam o pedido
+e a seleção, inclusive após recarregar ou reiniciar a API. Sem evento identificado,
+confirmar não executa nada.
+
+Em recorrências, o pedido afeta **somente a ocorrência escolhida**, explicitada
+na prévia. A série continua nos demais dias. Use o calendário para alterar a
+série inteira ou daqui para frente. Dia inteiro pode ser cancelado; mudar seu
+tipo ou horário continua no calendário.
+
+As prévias ficam em “Alterações para revisar”, com botões para confirmar,
+cancelar a prévia e conferir no calendário. “Desfazer alteração” restaura o
+registro e suas exceções anteriores, enquanto não houver outra escrita na agenda.
+
+```bash
+npm run test:agent:changes
+npm run agent:eval:changes
+```
+
+A integração usa modelo simulado e SQLite temporário. A avaliação usa Qwen real
+com o ciclo completo de preparar, confirmar, consultar e desfazer em API isolada.
+Método e limites estão no [registro de alterações conversacionais](avaliacoes/2026-10-29-alteracoes-conversa.md).

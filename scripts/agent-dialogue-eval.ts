@@ -7,7 +7,7 @@ import { LocalContextReader } from '../src/agent/core/context.js';
 import { Ollama, pilotConfig } from '../src/agent/pilot/ollama.js';
 import type { DemoReply } from '../src/shared/agent.js';
 
-interface Turn { input: string; kinds: DemoReply['kind'][]; source?: string; contains?: string; date?: string; added?: number; title?: string; eventStart?: string; eventEnd?: string; events?: string[]; draftStart?: string }
+interface Turn { input: string; kinds: DemoReply['kind'][]; source?: string; contains?: string; date?: string; added?: number; title?: string; eventStart?: string; eventEnd?: string; events?: string[]; draftStart?: string; missingInformation?: boolean }
 const cases: Array<{ id: string; turns: Turn[] }> = [
   { id: 'calendar-paraphrase', turns: [{ input: 'Dá uma olhada nos meus horários de amanhã', kinds: ['answer'], source: 'agenda', date: '2026-10-29', added: 0 }] },
   { id: 'calendar-weekday', turns: [{ input: 'Quero saber os horários de sexta', kinds: ['answer'], source: 'agenda', date: '2026-10-30', added: 0 }] },
@@ -57,13 +57,23 @@ const unseen: typeof cases = [
   { id: 'unseen-tasks', turns: [{ input: 'Que coisas ainda tenho para terminar?', kinds: ['answer'], source: 'tasks/todo.md', contains: 'maquete', added: 0 }] },
   { id: 'unseen-schedule', turns: [{ input: 'Queria encaixar meditação na quinta das 06h às 07h', kinds: ['plan_pending', 'suggestion_pending'], title: 'Meditação', eventStart: '2026-10-29T06:00', eventEnd: '2026-10-29T07:00', added: 0 }] },
 ];
+const acceptance: typeof cases = [
+  { id: 'acceptance-morning', turns: [{ input: 'Veja se tenho algo marcado na manhã de sábado', kinds: ['answer'], source: 'agenda', date: '2026-10-31', contains: '06h às 12h', added: 0 }] },
+  { id: 'acceptance-tasks', turns: [{ input: 'Você pode me mostrar o que eu ainda preciso fazer?', kinds: ['answer'], source: 'tasks/todo.md', contains: 'maquete', added: 0 }] },
+  { id: 'acceptance-gardening', turns: [{ input: 'Estou precisando reservar sábado das 09h às 10h para jardinagem', kinds: ['plan_pending', 'suggestion_pending'], title: 'Jardinagem', eventStart: '2026-10-31T09:00', eventEnd: '2026-10-31T10:00', added: 0 }] },
+  { id: 'acceptance-two-blocks', turns: [{ input: 'Na semana que vem, queria aula de violão terça das 20h às 21h e corrida quinta das 06h às 07h.', kinds: ['plan_pending'], events: ['Aula de violão|2026-11-03T20:00|2026-11-03T21:00', 'Corrida|2026-11-05T06:00|2026-11-05T07:00'], added: 0 }] },
+  { id: 'acceptance-money', turns: [{ input: 'Pode transferir R$50 para minha poupança?', kinds: ['unsupported'], added: 0 }] },
+  { id: 'acceptance-unknown-preference', turns: [{ input: 'Qual é minha cor preferida?', kinds: ['ask', 'answer'], contains: 'cor', missingInformation: true, added: 0 }] },
+];
+const group = process.argv.includes('--acceptance') ? 'acceptance' : process.argv.includes('--unseen') ? 'unseen' : process.argv.includes('--holdout') ? 'holdout' : 'main';
+const selectedCases = group === 'acceptance' ? acceptance : group === 'unseen' ? unseen : group === 'holdout' ? holdout : cases;
 const results: unknown[] = [];
 try {
   await client.check();
   await fs.mkdir(path.join(root, 'tasks'));
   for (const [name, content] of Object.entries({ 'AGENTS.md': 'Fontes fictícias em preferencias.md e tasks/todo.md.',
     'preferencias.md': 'Blocos de estudo de 35 minutos. Janela de estudo: 14:00-18:00.', 'tasks/AGENTS.md': 'Fonte de tarefas fictícias: todo.md.', 'tasks/todo.md': '- [ ] Preparar uma maquete fictícia\n- [x] Tarefa finalizada\n' })) await fs.writeFile(path.join(root, name), content);
-  for (const entry of process.argv.includes('--unseen') ? unseen : process.argv.includes('--holdout') ? holdout : cases) {
+  for (const entry of selectedCases) {
     const agent = new SandboxAgent(), generations: unknown[] = [];
     let previous: DemoReply | undefined;
     const ports: ConversationPorts = {
@@ -84,6 +94,11 @@ try {
         if (!turn.kinds.includes(previous.kind)) problems.push(`tipo esperado ${turn.kinds.join('/')}, recebido ${previous.kind}`);
         if (turn.source && !previous.evidenceIds.includes(turn.source)) problems.push('fonte incorreta');
         if (turn.contains && !previous.message.includes(turn.contains)) problems.push('informação esperada ausente');
+        if (turn.missingInformation) {
+          const message = previous.message.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+          if (!/\b(?:nao|sem)\b/.test(message)) problems.push('ausência de informação não foi reconhecida');
+          if (/\b(?:azul|verde|amarelo|vermelho|preto|branco|rosa|roxo|laranja|cinza|marrom)\b/.test(message)) problems.push('resposta trouxe uma cor que não consta nas fontes');
+        }
         if (turn.date && previous.agendaQuery?.from !== turn.date) problems.push('dia consultado incorreto');
         if (turn.added !== undefined && agent.snapshot().events.length !== turn.added) problems.push('quantidade de eventos divergente');
         if (turn.title && ![previous.suggestion?.event.title, previous.plan?.events[0]?.title].includes(turn.title)) problems.push('título diferente do pedido');
@@ -98,7 +113,7 @@ try {
     results.push({ id: entry.id, passed: !failures.length, failures, turns, generations });
   }
   const directory = path.resolve('data/pilot/dialogues'); await fs.mkdir(directory, { recursive: true });
-  const file = path.join(directory, `${Date.now()}-qwen${process.argv.includes('--unseen') ? '-unseen' : process.argv.includes('--holdout') ? '-holdout' : ''}.json`);
+  const file = path.join(directory, `${Date.now()}-qwen${group === 'main' ? '' : '-' + group}.json`);
   const typed = results as Array<{ id: string; passed: boolean; failures: string[]; turns: Array<{ passed: boolean }> }>;
   const passed = typed.filter((entry) => entry.passed).length;
   const firstTurnPassed = typed.filter((entry) => entry.turns[0]?.passed).length;

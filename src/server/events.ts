@@ -266,6 +266,9 @@ export interface PatchInput {
 /** Edita a serie inteira. */
 function patchSeries(row: EventRow, patch: PatchInput, actor: string): Occurrence {
   const allDay = patch.allDay ?? row.all_day === 1;
+  if (allDay !== (row.all_day === 1) && queryOne<{ present: number }>('SELECT 1 AS present FROM overrides WHERE event_id = ? LIMIT 1', row.id)) {
+    throw new BadRequest('A série tem ocorrências editadas. Revise as exceções antes de mudar entre dia inteiro e horário definido. Nenhuma alteração foi aplicada.');
+  }
   let start = patch.start ? normalizeMoment(patch.start, 'start') : row.start;
   let end = patch.end ? normalizeMoment(patch.end, 'end') : row.end;
 
@@ -339,6 +342,12 @@ function patchOccurrence(
     ) ?? undefined,
   );
 
+  if ((patch.allDay !== undefined && patch.allDay !== current.allDay)
+    || (patch.category !== undefined && normalizeCategory(patch.category) !== current.category)
+    || (patch.rrule !== undefined && patch.rrule !== row.rrule)) {
+    throw new BadRequest('Para mudar categoria, dia inteiro ou repetição, escolha daqui para frente ou a série toda.');
+  }
+
   const allDay = patch.allDay ?? current.allDay;
   let start = patch.start ? normalizeMoment(patch.start, 'start') : current.start;
   let end = patch.end ? normalizeMoment(patch.end, 'end') : current.end;
@@ -373,7 +382,7 @@ function patchOccurrence(
     );
 
   audit(actor, 'update:this', { id: row.id, occurrenceDate, start });
-  return listOccurrences(dateOf(start), dateOf(start)).find((o) => o.seriesId === row.id) ??
+  return listOccurrences(dateOf(start), dateOf(start)).find((o) => o.seriesId === row.id && o.occurrenceDate === occurrenceDate) ??
     rowToOccurrence(row, occurrenceDate, undefined);
 }
 
@@ -393,9 +402,19 @@ function patchFuture(
     return patchSeries(row, patch, actor);
   }
 
-  const trimmed: Rrule = { ...rule, until: cutoff, count: undefined };
-  db.prepare('UPDATE events SET rrule = ?, updated_at = ? WHERE id = ?').run(
+  const futureOverrides = queryAll<OverrideRow>('SELECT * FROM overrides WHERE event_id = ? AND occurrence_date >= ?', row.id, occurrenceDate);
+  const exdates = JSON.parse(row.exdates || '[]') as string[];
+  const futureExdates = exdates.filter((date) => date >= occurrenceDate);
+  const inheritedRule = patch.rrule === undefined || patch.rrule === row.rrule;
+  const requestedStart = patch.start ? normalizeMoment(patch.start, 'start') : rowToOccurrence(row, occurrenceDate, undefined).start;
+  if ((futureOverrides.length || futureExdates.length) && (!inheritedRule || dateOf(requestedStart) !== occurrenceDate || (patch.allDay !== undefined && patch.allDay !== (row.all_day === 1)))) {
+    throw new BadRequest('Há exceções futuras nessa série. Revise as exceções antes de mudar o dia, a repetição ou o tipo de horário. Nenhuma alteração foi aplicada.');
+  }
+  const remaining = rule.count ? rule.count - occurrenceDates(dateOf(row.start), rule, dateOf(row.start), cutoff).length : undefined;
+  const trimmed: Rrule = { ...rule, until: cutoff };
+  db.prepare('UPDATE events SET rrule = ?, exdates = ?, updated_at = ? WHERE id = ?').run(
     formatRrule(trimmed),
+    JSON.stringify(exdates.filter((date) => date < occurrenceDate)),
     new Date().toISOString(),
     row.id,
   );
@@ -410,11 +429,14 @@ function patchFuture(
       start: patch.start ?? current.start,
       end: patch.end ?? current.end,
       allDay: patch.allDay ?? current.allDay,
-      rrule: patch.rrule === undefined ? formatRrule({ ...rule, until: undefined }) : patch.rrule,
+      rrule: inheritedRule ? formatRrule({ ...rule, count: remaining }) : patch.rrule,
       source: row.source,
     },
     actor,
   );
+
+  if (futureExdates.length) db.prepare('UPDATE events SET exdates = ? WHERE id = ?').run(JSON.stringify(futureExdates), created.seriesId);
+  db.prepare('UPDATE overrides SET event_id = ? WHERE event_id = ? AND occurrence_date >= ?').run(created.seriesId, row.id, occurrenceDate);
 
   audit(actor, 'update:future', { id: row.id, from: occurrenceDate, newId: created.seriesId });
   return created;
@@ -427,12 +449,18 @@ export function updateEvent(
   occurrenceDate?: DateStr,
   actor = 'app',
 ): Occurrence {
+  return eventTransaction(() => updateEventInternal(id, patch, scope, occurrenceDate, actor));
+}
+function updateEventInternal(id: string, patch: PatchInput, scope: EditScope, occurrenceDate: DateStr | undefined, actor: string): Occurrence {
   const row = getSeries(id);
   if (!row) throw new NotFound(`evento ${id} nao existe`);
 
   if (scope === 'all' || !row.rrule) return patchSeries(row, patch, actor);
   if (!occurrenceDate || !isDateStr(occurrenceDate)) {
     throw new BadRequest("para escopo 'this' ou 'future' informe 'occurrence' ('YYYY-MM-DD')");
+  }
+  if (!occurrenceDates(dateOf(row.start), parseRrule(row.rrule), occurrenceDate, occurrenceDate).length) {
+    throw new BadRequest('A data informada não corresponde a uma ocorrência dessa série.');
   }
   if (scope === 'this') return patchOccurrence(row, occurrenceDate, patch, actor);
   return patchFuture(row, occurrenceDate, patch, actor);
@@ -444,6 +472,9 @@ export function deleteEvent(
   occurrenceDate?: DateStr,
   actor = 'app',
 ): { deleted: EditScope } {
+  return eventTransaction(() => deleteEventInternal(id, scope, occurrenceDate, actor));
+}
+function deleteEventInternal(id: string, scope: EditScope, occurrenceDate: DateStr | undefined, actor: string): { deleted: EditScope } {
   const row = getSeries(id);
   if (!row) throw new NotFound(`evento ${id} nao existe`);
 
@@ -455,6 +486,9 @@ export function deleteEvent(
 
   if (!occurrenceDate || !isDateStr(occurrenceDate)) {
     throw new BadRequest("para escopo 'this' ou 'future' informe 'occurrence' ('YYYY-MM-DD')");
+  }
+  if (!occurrenceDates(dateOf(row.start), parseRrule(row.rrule), occurrenceDate, occurrenceDate).length) {
+    throw new BadRequest('A data informada não corresponde a uma ocorrência dessa série.');
   }
 
   if (scope === 'this') {
@@ -481,12 +515,27 @@ export function deleteEvent(
     return { deleted: 'all' };
   }
   db.prepare('UPDATE events SET rrule = ?, updated_at = ? WHERE id = ?').run(
-    formatRrule({ ...rule, until: cutoff, count: undefined }),
+    formatRrule({ ...rule, until: cutoff }),
     new Date().toISOString(),
     id,
   );
+  db.prepare('DELETE FROM overrides WHERE event_id = ? AND occurrence_date >= ?').run(id, occurrenceDate);
   audit(actor, 'delete:future', { id, from: occurrenceDate });
   return { deleted: 'future' };
+}
+
+/** SAVEPOINT preserva também a transação de quem chamou, como os planos do agente. */
+function eventTransaction<T>(run: () => T): T {
+  db.exec('SAVEPOINT agenda_event_change');
+  try {
+    const result = run();
+    db.exec('RELEASE agenda_event_change');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK TO agenda_event_change');
+    db.exec('RELEASE agenda_event_change');
+    throw error;
+  }
 }
 
 /** Sincroniza os itens de um vault: cria, atualiza e remove o que saiu de la. */

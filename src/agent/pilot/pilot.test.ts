@@ -120,6 +120,19 @@ test('consulta de contexto usa contrato próprio sem propor ações ou receber f
   try { await new Ollama(pilotConfig({})).answerContext('Qual preferência?', [{ id: 'preferencias.md', text: '35 minutos.' }]); }
   finally { globalThis.fetch = originalFetch; }
 });
+test('classificador não oferece alterar eventos em um pedido de criação', async () => {
+  const originalFetch=globalThis.fetch;let allowed=false;
+  globalThis.fetch=async(_url,init)=>{
+    const body=JSON.parse(init?.body as string);
+    assert.equal(body.format.properties.intent.enum.includes('manage_event'),allowed);
+    return Response.json({done:true,done_reason:'stop',message:{content:'{"intent":"schedule"}'}});
+  };
+  try{
+    const client=new Ollama(pilotConfig({}));
+    await client.classifyIntent('Pode anotar fisioterapia na próxima semana?');
+    allowed=true;await client.classifyIntent('Pode cancelar a fisioterapia de amanhã?');
+  }finally{globalThis.fetch=originalFetch;}
+});
 test('cliente recusa modelo ausente e metadados de modelo remoto', async () => {
   const originalFetch = globalThis.fetch;
   try {

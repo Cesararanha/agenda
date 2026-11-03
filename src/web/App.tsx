@@ -204,7 +204,7 @@ export function App() {
     }
   }
 
-  if (meta?.agentSandbox && !demoCalendar) return <AgentDemo onCalendar={(date) => { setAnchor(date ?? today); if (date) setView('dia'); setDemoCalendar(true); void load(); }} />;
+  if (meta?.agentSandbox && !demoCalendar) return <AgentDemo onCalendar={(date) => { setMessage(null); setAnchor(date ?? today); if (date) setView('dia'); setDemoCalendar(true); void load(); }} />;
 
   return (
     <div className="app">

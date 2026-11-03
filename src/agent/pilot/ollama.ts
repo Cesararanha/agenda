@@ -4,6 +4,7 @@ import { titleFormat, titlePrompt } from '../core/title-interpretation.js';
 import { planningFormat, planningPrompt, type PlanningDraft } from '../core/assisted-plan.js';
 import { intentFormat, intentPrompt, intents } from '../core/intent.js';
 import { contextAnswerFormat, contextAnswerPrompt } from '../core/answers.js';
+import { changeFormat, changePrompt, isEventChangeRequest } from '../core/event-change.js';
 
 export interface PilotConfig { baseUrl: string; model: string; timeoutMs: number; numCtx: number; numPredict: number }
 export function pilotConfig(env = process.env): PilotConfig {
@@ -53,12 +54,15 @@ export class Ollama {
     return this.generate([{ role: 'system', content: titlePrompt }, { role: 'user', content: JSON.stringify({ request: input }) }], titleFormat);
   }
   async classifyIntent(input: string, pending = false) {
-    const allowed = pending ? [...intents] : intents.filter((intent) => intent !== 'continue');
+    const allowed = intents.filter((intent) => (pending || intent !== 'continue') && (intent !== 'manage_event' || isEventChangeRequest(input)));
     const format = { ...intentFormat, properties: { intent: { ...intentFormat.properties.intent, enum: allowed } } };
     return this.generate([{ role: 'system', content: `${intentPrompt}\nOpções permitidas nesta chamada: ${allowed.join(', ')}.` }, { role: 'user', content: JSON.stringify({ request: input }) }], format, 80);
   }
   async answerContext(input: string, sources: Array<{ id: string; text: string }>) {
     return this.generate([{ role: 'system', content: contextAnswerPrompt }, { role: 'user', content: JSON.stringify({ request: input, sources }) }], contextAnswerFormat);
+  }
+  async extractChange(messages: string[]) {
+    return this.generate([{role:'system',content:changePrompt},{role:'user',content:JSON.stringify({messages})}],changeFormat,600);
   }
   async plan(draft: PlanningDraft, feedback?: string) {
     return this.generate([{ role: 'system', content: planningPrompt + (feedback ? `\nValidação da tentativa anterior: ${feedback}` : '') }, { role: 'user', content: JSON.stringify({ messages: draft.messages }) }], planningFormat, 1400);

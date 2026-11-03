@@ -12,6 +12,7 @@ import { groundedSchedule, schedulingIntent } from './human-time.js';
 import { groundedTitle } from './title-interpretation.js';
 import { planningCandidate, planningGuard, planningRead, validatePlanning, type PlanningDraft } from './assisted-plan.js';
 import { intentSchema } from './intent.js';
+import { manageEvent, isEventChangeRequest, isChangeFollowup, type ChangeTarget, type ChangeSpec, type ChangeResult } from './event-change.js';
 
 export interface ConversationPorts {
   state(from?: string, to?: string): SandboxState;
@@ -22,6 +23,14 @@ export interface ConversationPorts {
   titleModel?: (input: string) => Promise<unknown>;
   planningModel?: (draft: PlanningDraft, feedback?: string) => Promise<unknown>;
   intentModel?: (input: string, pending?: boolean) => Promise<unknown>;
+  changeModel?: (messages: string[]) => Promise<unknown>;
+  changes?: {
+    list(from: string, to: string): ChangeTarget[];
+    prepare(spec: ChangeSpec, request: {requestId: string; input: string; now: string}): ChangeResult;
+    apply(id: string, request: {requestId: string; input: string; now: string}): ChangeResult;
+    cancel(id: string, request: {requestId: string; input: string; now: string}): ChangeResult;
+    undo(id: string, request: {requestId: string; input: string; now: string}): ChangeResult;
+  };
   clock(): string;
   agenda?(from: string, to: string): AgendaItem[];
   cancel?(suggestionId: string, request: { requestId: string; input: string; now: string }): AgentResult;
@@ -38,16 +47,17 @@ const ask = (message: string): DemoReply => ({ kind: 'ask', message, evidenceIds
 export async function converse(request: { requestId: string; input: string }, ports: ConversationPorts, previous?: DemoReply): Promise<DemoReply> {
   const frame = previous?.continuation ? { ...previous, ...previous.continuation } : previous;
   const reply = await routeConversation(request, ports, frame);
-  const hasOperation = reply.event || reply.suggestion || reply.plan || reply.eventDraft || reply.pendingSchedule || reply.planningDraft;
+  const hasOperation = reply.event || reply.suggestion || reply.plan || reply.eventDraft || reply.pendingSchedule || reply.planningDraft || reply.change || reply.changeDraft;
   // Leituras não substituem a operação identificada nesta conversa nem mostram botões duplicados.
   if (frame && reply.kind === 'answer' && reply.evidenceIds.length && !reply.changed && !hasOperation) {
     const continuation: NonNullable<DemoReply['continuation']> = {};
-    for (const key of ['event', 'suggestion', 'plan', 'eventDraft', 'pendingSchedule', 'planningDraft', 'agendaQuery'] as const) {
+    for (const key of ['event', 'suggestion', 'plan', 'eventDraft', 'pendingSchedule', 'planningDraft', 'agendaQuery', 'change', 'changeDraft'] as const) {
       if (frame[key]) Object.assign(continuation, { [key]: frame[key] });
     }
     if (continuation.suggestion?.status === 'canceled') delete continuation.suggestion;
     if (continuation.plan?.status === 'canceled' || continuation.plan?.status === 'undone') delete continuation.plan;
-    const waiting = continuation.event || continuation.suggestion || continuation.plan || continuation.eventDraft || continuation.pendingSchedule || continuation.planningDraft;
+    if (continuation.change?.status === 'canceled' || continuation.change?.status === 'undone') delete continuation.change;
+    const waiting = continuation.event || continuation.suggestion || continuation.plan || continuation.eventDraft || continuation.pendingSchedule || continuation.planningDraft || continuation.change || continuation.changeDraft;
     if (!waiting && reply.agendaQuery) continuation.agendaQuery = reply.agendaQuery;
     return { ...reply, ...(Object.keys(continuation).length ? { continuation } : {}),
       ...(continuation.planningDraft ? { planningDraft: continuation.planningDraft } : {}) };
@@ -58,6 +68,19 @@ export async function converse(request: { requestId: string; input: string }, po
 async function routeConversation(request: { requestId: string; input: string }, ports: ConversationPorts, previous?: DemoReply): Promise<DemoReply> {
   const now = ports.clock();
   const normalized = normalize(request.input).replace(/[.!?]+$/, '');
+  const exactChange = /^(confirmo|confirme|cancele|desfaca) (?:a )?alteracao (alteracao-[a-z0-9-]+)$/.exec(normalized);
+  if (exactChange && ports.changes) {
+    const method = exactChange[1] === 'cancele' ? 'cancel' : exactChange[1] === 'desfaca' ? 'undo' : 'apply';
+    return ports.changes[method](exactChange[2]!, {...request,now});
+  }
+  if (previous?.change && ports.changes) {
+    const actionConfirmation = previous.change.action === 'delete' ? /^(pode cancelar|pode remover|pode excluir|pode desmarcar|confirme o cancelamento)$/ : /^(pode mudar|pode mover|pode reagendar|pode alterar)$/;
+    if (actionConfirmation.test(normalized)) return ports.changes.apply(previous.change.id,{...request,now});
+    if (/^(sim|confirmo|confirmado|pode confirmar|pode aplicar|aplique|confirme|confirmo a alteracao|pode sim|isso mesmo|pode ser)$/.test(normalized)) return ports.changes.apply(previous.change.id,{...request,now});
+    if (/^(nao|nao quero|cancele|cancelar|cancele a alteracao|deixa pra la)$/.test(normalized)) return ports.changes.cancel(previous.change.id,{...request,now});
+    if (/^(desfaca|desfaz|desfazer|desfaca a alteracao|desfazer alteracao|desfaca isso|desfaca essa alteracao|desfaca a ultima alteracao)$/.test(normalized)) return ports.changes.undo(previous.change.id,{...request,now});
+  }
+  if (previous?.changeDraft && /^(nao|cancele|cancelar|deixa pra la)$/.test(normalized)) return {kind:'answer',changed:false,evidenceIds:[],message:'Cancelei esse pedido. Nenhum compromisso foi alterado.'};
   const exactPlan = /^(confirmo|confirme|cancele|desfaca) (?:o )?plano (plano-[a-z0-9-]+)$/.exec(normalized);
   if (exactPlan && ports.plans) {
     const method = exactPlan[1] === 'cancele' ? 'cancel' : exactPlan[1] === 'desfaca' ? 'undo' : 'apply';
@@ -74,6 +97,8 @@ async function routeConversation(request: { requestId: string; input: string }, 
   if (previous?.planningDraft && /^(?:nao|cancele|cancelar|deixa pra la|desista)[.!?]?$/.test(normalized)) return { kind: 'answer', changed: false, evidenceIds: [], message: 'Cancelei esse pedido de plano. Nenhum compromisso foi alterado.' };
   const directWeekly = weekly && !('ask' in weekly) && (weekly.replace || weekly.repeat
     || /^(?:vamos organizar|organize|coloque|adicione|agende|marque|registre|inclua)\b/.test(normalized));
+  const shortContextEdit = (previous?.event || previous?.suggestion) && /^(?:mude para|troque para|passe para|(?:pode |quero |vamos )(?:mudar|trocar|passar) para)\s/.test(normalized);
+  if (ports.changes && !shortContextEdit && !(weekly && !('ask' in weekly)) && (isEventChangeRequest(request.input) || isChangeFollowup(request.input, previous?.changeDraft))) return manageEvent(request,ports,previous);
   if (ports.planningModel && !directWeekly && !planningRead(request.input)
     && (previous?.planningDraft || planningCandidate(request.input))) {
     const blocked = planningGuard([request.input]);
@@ -210,7 +235,7 @@ async function readMemory(input: string, ports: ConversationPorts): Promise<Demo
 async function routeByIntent(request: { requestId: string; input: string }, ports: ConversationPorts, now: string, previous?: DemoReply): Promise<DemoReply> {
   const clarify = (message: string) => ({ ...ask(message), needsDetails: true });
   let raw: unknown;
-  const pending = Boolean(previous?.planningDraft || previous?.eventDraft || previous?.pendingSchedule);
+  const pending = Boolean(previous?.planningDraft || previous?.eventDraft || previous?.pendingSchedule || previous?.changeDraft);
   try { raw = await ports.intentModel!(request.input, pending); }
   catch { return { kind: 'model_error', changed: false, evidenceIds: [], message: 'O modelo local não conseguiu interpretar o pedido agora. Nenhuma alteração foi feita. Você pode tentar novamente com a mesma mensagem.' }; }
   const selected = intentSchema.safeParse(raw);
@@ -221,7 +246,9 @@ async function routeByIntent(request: { requestId: string; input: string }, port
     return readCalendar(interpreted.query, ports);
   }
   if (selected.data.intent === 'tasks_read') return readTasks(ports);
+  if (selected.data.intent === 'manage_event') return manageEvent(request,ports,previous);
   if (selected.data.intent === 'continue') {
+    if (previous?.changeDraft) return manageEvent(request,ports,previous);
     if (previous?.planningDraft && ports.planningModel) return prepareAssisted(request, ports, now, previous);
     if (previous?.pendingSchedule) {
       const title = groundedTitle({ titleSpan: request.input }, request.input);

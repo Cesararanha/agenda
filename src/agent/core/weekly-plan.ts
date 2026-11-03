@@ -3,6 +3,7 @@ import { addDays, startOfWeek, formatDateBR, formatDayLabel, weekday } from '../
 import { timedEvent, wallMoment, type TimedEvent } from './request.js';
 import { normalize } from './agenda-query.js';
 import { expandWeekdayAliases, explicitWeeklyRepeat, weeklyRepeatHasConstraint } from './human-time.js';
+import { groundedTitle } from './title-interpretation.js';
 
 export interface WeeklyRequest { from: string; to: string; replace: boolean; events: TimedEvent[]; repeat?: 'weekly' }
 export interface PlanRemoval { id: string; seriesId: string; occurrenceDate: string; recurring: boolean; title: string; start: string; end: string; allDay: boolean }
@@ -103,7 +104,7 @@ export function interpretWeeklyPlan(raw: string, now: string): WeeklyRequest | {
     previousTitle = title;
     for (const day of days) {
       const date = addDays(from, dayNames.indexOf(day));
-      events.push({ title: title[0]!.toUpperCase() + title.slice(1), start: `${date}T${start}`, end: `${date}T${end}` });
+      events.push({ title: groundedTitle({ titleSpan: title }, raw, true) ?? title[0]!.toUpperCase() + title.slice(1), start: `${date}T${start}`, end: `${date}T${end}` });
     }
   }
   const spec: WeeklyRequest = { from, to, replace, events: events.sort((a, b) => a.start.localeCompare(b.start)), ...(repeat ? { repeat: 'weekly' } : {}) };

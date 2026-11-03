@@ -192,3 +192,29 @@ Os próximos ajustes devem ampliar a avaliação da conversa com linguagem de us
 real e esclarecer pedidos incompletos. O design system e as integrações
 financeiras continuam fora desta entrega. A escrita no vault e o banco pessoal
 permanecem fora das demonstrações atuais.
+
+## Alterações identificadas pela conversa
+
+`event-change.ts` valida uma alteração ou cancelamento de um compromisso por vez.
+A extração recebe somente mensagens humanas e retorna ação e trechos de título,
+data e horários. Os trechos precisam constar nas mensagens; o código resolve os
+valores, confere a cobertura temporal e encontra candidatos no banco. IDs não
+entram no contrato do modelo. Múltiplos candidatos exigem escolha explícita.
+O rascunho persistido sobrevive a consultas intermediárias e reinício da API.
+
+`ChangeStore` existe somente no sandbox e guarda prévias, recibos e snapshots
+em tabelas separadas. Preparar nunca grava no calendário. Confirmar confere
+versão, registro original e conflitos. Reagendar conserva o ID da série;
+cancelar uma recorrência cria a exceção da ocorrência selecionada.
+
+Aplicação, snapshot, auditoria e recibo usam uma única transação. Desfazer
+restaura todos os campos originais, metadados e exceções, e exige que não tenha
+havido outra escrita na agenda. Cancelar uma prévia não apaga um compromisso
+aplicado. Revisar cancela a prévia anterior, cuja confirmação passa a ser recusada.
+Falha de ferramenta mantém a proposta para uma tentativa explícita.
+
+As ações usam o objeto identificado na conversa ou o ID de um botão de prévia.
+O servidor recusa contexto enviado pelo cliente. A integração
+`scripts/agent-changes-regression.mjs` confere esses controles com SQLite real;
+`scripts/agent-change-eval.ts` avalia o fluxo com Qwen real e dados fictícios.
+Veja [método e limites](avaliacoes/2026-10-29-alteracoes-conversa.md).

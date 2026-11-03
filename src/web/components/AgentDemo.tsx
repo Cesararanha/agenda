@@ -22,7 +22,7 @@ const examples = ['Como está meu dia?', 'Quais tarefas estão abertas?', 'Qual 
 function replyText(reply: DemoReply): string {
   if (reply.kind === 'created' && reply.event) return `Registrei ${reply.event.details.title} na agenda fictícia, das ${reply.event.details.start.slice(11)} às ${reply.event.details.end.slice(11)} em ${formatDateBR(reply.event.details.start.slice(0, 10))}.`;
   if (reply.kind === 'applied' && reply.event) return `Sugestão confirmada: ${reply.event.details.title} em ${formatDateBR(reply.event.details.start.slice(0, 10))}, das ${reply.event.details.start.slice(11)} às ${reply.event.details.end.slice(11)}. Registrada na agenda fictícia.`;
-  if (reply.kind === 'already_applied' && !reply.plan) return 'Essa sugestão já foi aplicada. Nenhuma alteração nova foi feita.';
+  if (reply.kind === 'already_applied' && !reply.plan && !reply.change) return 'Essa sugestão já foi aplicada. Nenhuma alteração nova foi feita.';
   return reply.message;
 }
 
@@ -111,6 +111,18 @@ export function AgentDemo({ onCalendar }: { onCalendar: (date?: string) => void 
     return <><button className="primary" disabled={busy || !ready} onClick={() => void send(`Confirmo o plano ${id}`)}>{plan.replace && !plan.events.length ? 'Confirmar remoções' : plan.repeat ? 'Confirmar rotina semanal' : 'Confirmar plano completo'}</button>{' '}
       <button disabled={busy || !ready} onClick={() => void send(`Cancele o plano ${id}`)}>Cancelar plano</button></>;
   }
+  const activeChangeDraft=messages.at(-1)?.reply?.changeDraft??messages.at(-1)?.reply?.continuation?.changeDraft;
+  function changeButtons(id: string) {
+    const change=panel?.changes?.find(item=>item.id===id);if(!change)return null;
+    if(change.status==='canceled')return <span className="demo-applied">Prévia cancelada</span>;
+    if(change.status==='undone')return <span className="demo-applied">Alteração desfeita</span>;
+    if(change.status==='applied')return change.appliedVersion===panel?.version
+      ? <button disabled={busy||!ready} onClick={()=>void send(`Desfaça a alteração ${id}`)}>Desfazer alteração</button>
+      : <span className="demo-applied">A agenda recebeu outras alterações.</span>;
+    if(change.expectedVersion!==panel?.version)return <span className="demo-applied">A agenda mudou. Peça uma prévia atualizada.</span>;
+    return <><button className="primary" disabled={busy||!ready} onClick={()=>void send(`Confirmo a alteração ${id}`)}>Confirmar alteração</button>{' '}
+      <button disabled={busy||!ready} onClick={()=>void send(`Cancele a alteração ${id}`)}>Cancelar prévia</button></>;
+  }
 
   return <div className="demo-app">
     <header className="demo-header">
@@ -119,11 +131,24 @@ export function AgentDemo({ onCalendar }: { onCalendar: (date?: string) => void 
       <button onClick={() => onCalendar()} disabled={busy}>Ver calendário fictício</button>
     </header>
     <div className="demo-notice">Você está em uma demonstração separada da sua agenda pessoal.</div>
+    <details className="demo-card">
+      <summary>O que posso fazer aqui?</summary>
+      <p>Converse para consultar compromissos, tarefas e preferências, salvar compromissos, pedir um bloco de estudo e preparar planos ou rotinas semanais.</p>
+      <p>Você também pode pedir para mover ou cancelar um compromisso existente pelo título e dia. Revise e confirme a alteração. Em repetições, o pedido pela conversa afeta só a ocorrência escolhida.</p>
+      <p>Use o calendário para mudar uma série inteira ou os compromissos daqui para frente.</p>
+      <p>Sugestões e planos aguardam confirmação. A conversa mostra o que foi registrado e usa a agenda atual nas consultas.</p>
+    </details>
     {error && <div className="banner error" role="alert">{error}
       {failed && <button disabled={busy} onClick={() => void send(failed.input, failed)}>Tentar novamente</button>}
     </div>}
     <main className="demo-layout">
       <aside className="demo-day" aria-label="Painel do dia">
+        {panel?.changes?.some(item=>item.status==='pending')&&<section className="demo-card"><h2>Alterações para revisar</h2>
+          {panel.changes.filter(item=>item.status==='pending').map(item=><div key={item.id} className="demo-suggestion"><strong>{item.action==='delete'?'Cancelar':'Mover'} {item.target.title}</strong>
+            <p>{formatDateBR(item.target.start.slice(0,10))}{item.target.allDay?' • Dia inteiro':` • ${item.target.start.slice(11)} às ${item.target.end.slice(11)}`}</p>
+            {item.after&&<p>Novo: {formatDateBR(item.after.start.slice(0,10))}, {item.after.start.slice(11)} às {item.after.end.slice(11)}</p>}
+            {item.target.recurring&&<p>Somente essa ocorrência.</p>}{changeButtons(item.id)}</div>)}
+        </section>}
         <section className="demo-card"><h2>Hoje {panel && <span>{formatDateBR(panel.day)}</span>}</h2>
           {!panel ? <p role="status">Carregando seu dia fictício…</p> : panel.events.length === 0 ? <p>Agenda livre por enquanto.</p>
             : <ol className="demo-events">{panel.events.map((event) => <li key={event.id}>
@@ -170,6 +195,9 @@ export function AgentDemo({ onCalendar }: { onCalendar: (date?: string) => void 
             {message.reply?.diagnostics && <ResponseDetails data={message.reply.diagnostics} />}
             {message.reply?.suggestion && suggestionButton(message.reply.suggestion.id)}
             {message.reply?.plan && planButtons(message.reply.plan.id)}
+            {message.reply?.change && <>{changeButtons(message.reply.change.id)}<button disabled={busy} onClick={()=>onCalendar((message.reply!.change!.after?.start??message.reply!.change!.target.start).slice(0,10))}>Conferir no calendário</button></>}
+            {activeChangeDraft?.missing==='selection'&&message.reply?.changeDraft?.candidates&&JSON.stringify(activeChangeDraft.candidates)===JSON.stringify(message.reply.changeDraft.candidates)&&<div aria-label="Escolha do compromisso">{message.reply.changeDraft.candidates.map((item,index)=><button key={item.id} disabled={busy||!ready}
+              onClick={()=>void send(`Escolho a opção ${index+1}`)}>{index+1}. {item.title} • {formatDateBR(item.start.slice(0,10))} • {item.allDay?'Dia inteiro':`${item.start.slice(11)} às ${item.end.slice(11)}`}</button>)}</div>}
             {message.reply?.event && <button disabled={busy} onClick={() => onCalendar(message.reply!.event!.details.start.slice(0, 10))}>Ver compromisso no calendário</button>}
           </article>)}
           {busy && <p className="demo-thinking" role="status">Consultando e conferindo…</p>}
@@ -186,6 +214,9 @@ export function AgentDemo({ onCalendar }: { onCalendar: (date?: string) => void 
 }
 
 function displayInput(input: string, panel: DemoPanel | null): string {
+  const changeMatch=/^(Confirmo|Cancele|Desfaça) a alteração (\S+)$/.exec(input);
+  const change=changeMatch&&panel?.changes?.find(item=>item.id===changeMatch[2]);
+  if(change)return `${changeMatch![1]} a alteração de ${change.target.title}.`;
   const match = /^Confirmo a sugestão (\S+)$/.exec(input);
   const suggestion = match && panel?.suggestions.find((item) => item.id === match[1]);
   return suggestion ? `Confirmo a sugestão de ${suggestion.event.title.toLowerCase()} das ${suggestion.event.start.slice(11)} às ${suggestion.event.end.slice(11)}.` : input;

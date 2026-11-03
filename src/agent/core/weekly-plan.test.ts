@@ -39,6 +39,15 @@ test('pedido reportado interpreta as remoções e todos os cinco blocos, mantend
     ['Trabalho', '2026-10-30T10:00', '2026-10-30T16:00'],
   ]);
 });
+test('plano direto preserva a grafia humana de títulos acentuados, inclusive título herdado', () => {
+  const result = interpretWeeklyPlan('Organize a próxima semana. Sexta Meditação das 18h às 19h; sábado Revisão das 10h às 11h.', now);
+  assert.ok(result && !('ask' in result));
+  assert.deepEqual(result.events.map((event) => event.title), ['Meditação', 'Revisão']);
+  const inherited = interpretWeeklyPlan('Organize minha semana. Segunda e quarta Musculação das 8h às 9h; sexta das 10h às 11h.', now);
+  assert.ok(inherited && !('ask' in inherited));
+  assert.equal(inherited.events.length, 3);
+  assert.ok(inherited.events.every((event) => event.title === 'Musculação'));
+});
 test('blocos com títulos diferentes e próxima semana não removem compromissos implicitamente', () => {
   const result = interpretWeeklyPlan('Na próxima semana adicione Trabalho segunda-feira e quarta-feira das 8h às 14h; terça e quinta Estudo das 18h às 19h.', now);
   assert.ok(result && !('ask' in result));

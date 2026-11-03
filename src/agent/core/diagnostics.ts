@@ -33,7 +33,7 @@ export class ResponseTrace {
   finish(reply: DemoReply): DemoReply {
     if (reply.kind === 'ask' && this.model?.status === 'completed') this.model.status = reply.planningDraft?.missing?.length || reply.needsDetails ? 'needs_clarification' : 'rejected';
     const steps = [...this.steps];
-    const path: ResponseDiagnostics['path'] = steps.includes('interpret_plan') ? 'planning' : steps.includes('interpret_event') ? 'interpretation'
+    const path: ResponseDiagnostics['path'] = steps.includes('interpret_change') || steps.some(step=>step.startsWith('change_')) ? 'event_change' : steps.includes('interpret_plan') ? 'planning' : steps.includes('interpret_event') ? 'interpretation'
       : steps.some((step) => step.startsWith('plan_')) ? 'weekly_plan'
       : steps.includes('propose') || (steps.includes('state') && steps.includes('read_context')) ? 'suggestion'
       : steps.includes('execute') || steps.includes('cancel') ? 'validation'

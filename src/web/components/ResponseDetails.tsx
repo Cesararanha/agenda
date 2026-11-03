@@ -4,8 +4,10 @@ const paths: Record<ResponseDiagnostics['path'], string> = {
   calendar: 'Consulta de agenda', tasks: 'Consulta de tarefas', suggestion: 'Sugestão de organização',
   validation: 'Validação e ferramentas', weekly_plan: 'Plano semanal', memory: 'Consulta de contexto', interpretation: 'Interpretação assistida do pedido', planning: 'Planejamento com IA local', clarification: 'Esclarecimento',
   routing: 'Identificação da intenção',
+  event_change: 'Alteração de compromisso existente',
 };
 const steps: Record<string, string> = { state: 'Conferir o estado da agenda', execute: 'Validar o pedido e executar a ação permitida',
+  interpret_change:'Interpretar os dados da alteração sem executar',change_prepare:'Preparar a alteração para revisão',change_apply:'Confirmar e aplicar a alteração',change_cancel:'Cancelar a prévia',change_undo:'Desfazer a alteração',
   interpret_plan: 'Separar e conferir os compromissos do pedido completo',
   route_intent: 'Identificar a intenção para escolher a ferramenta permitida',
   propose: 'Preparar sugestão sem registrar', agenda: 'Consultar compromissos no banco', cancel: 'Cancelar a sugestão',

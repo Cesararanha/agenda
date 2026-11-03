@@ -84,8 +84,8 @@ async function stop() {
   await Promise.race([exited, setTimeout(2000)]);
   if (child.exitCode === null) { child.kill('SIGKILL'); await exited; }
 }
-async function call(url, body) {
-  const response = await fetch(base + url, { method: body === undefined ? 'GET' : 'POST',
+async function call(url, body, method = body === undefined ? 'GET' : 'POST') {
+  const response = await fetch(base + url, { method,
     headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(10000) });
   return { status: response.status, body: await response.json() };
 }
@@ -345,6 +345,43 @@ try {
   assert.equal(inspection.prepare('SELECT count(*) AS n FROM events').get().n, beforeContinuation + 2);
   const spoofedFrame = await call('/api/agent/sandbox/chat', { conversationId: 'other-conversation', requestId: 'spoof-frame', input: 'pode confirmar', continuation: { suggestion: interrupted.suggestion } });
   assert.equal(spoofedFrame.status, 400);
+  // O calendário e a conversa usam o mesmo registro, inclusive após editar e reiniciar.
+  const countBeforeCalendar = inspection.prepare('SELECT count(*) AS n FROM events').get().n;
+  const calendarPlan = (await chat('calendar-sync-propose', 'Organize a próxima semana. Sexta Meditação das 18h às 19h.', 'calendar-sync')).body;
+  assert.equal(calendarPlan.kind, 'plan_pending');
+  assert.equal(calendarPlan.plan.events[0].start, '2030-05-24T18:00');
+  assert.equal(inspection.prepare('SELECT count(*) AS n FROM events').get().n, countBeforeCalendar);
+  assert.equal((await chat('calendar-sync-confirm', 'pode confirmar', 'calendar-sync')).body.kind, 'plan_applied');
+  const calendarUrl = '/api/events?from=2030-05-24&to=2030-05-24';
+  const originalCalendar = (await call(calendarUrl)).body.events.filter((event) => event.title === 'Meditação');
+  assert.equal(originalCalendar.length, 1);
+  assert.equal(originalCalendar[0].start, '2030-05-24T18:00');
+  assert.equal(originalCalendar[0].end, '2030-05-24T19:00');
+  const originalId = originalCalendar[0].seriesId;
+  const calendarEdit = await call(`/api/events/${originalId}?scope=all&occurrence=2030-05-24`,
+    { start: '2030-05-24T19:00', end: '2030-05-24T20:00' }, 'PATCH');
+  assert.equal(calendarEdit.status, 200);
+  assert.equal(calendarEdit.body.seriesId, originalId);
+  const countAfterCalendar = inspection.prepare('SELECT count(*) AS n FROM events').get().n;
+  assert.equal(countAfterCalendar, countBeforeCalendar + 1);
+  const calendarRead = (await chat('calendar-sync-query', 'Quais são meus compromissos em 24/05/2030?', 'calendar-sync')).body;
+  assert.equal(calendarRead.kind, 'answer');
+  assert.deepEqual(calendarRead.evidenceIds, ['agenda']);
+  assert.ok(calendarRead.message.includes('19:00 às 20:00: Meditação'));
+  assert.ok(!calendarRead.message.includes('18:00 às 19:00: Meditação'));
+  await stop(); await start();
+  const persistedCalendar = (await call(calendarUrl)).body.events.filter((event) => event.title === 'Meditação');
+  assert.equal(persistedCalendar.length, 1);
+  assert.equal(persistedCalendar[0].seriesId, originalId);
+  assert.equal(persistedCalendar[0].start, '2030-05-24T19:00');
+  assert.equal(persistedCalendar[0].end, '2030-05-24T20:00');
+  const calendarHistory = (await call('/api/agent/sandbox/history?conversationId=calendar-sync')).body.turns;
+  assert.ok(calendarHistory.some((turn) => turn.reply.message.includes('19:00 às 20:00: Meditação')));
+  const freshCalendarRead = (await chat('calendar-sync-after-restart', 'Quais são meus compromissos em 24/05/2030?', 'calendar-sync')).body;
+  assert.equal(freshCalendarRead.kind, 'answer');
+  assert.ok(freshCalendarRead.message.includes('19:00 às 20:00: Meditação'));
+  assert.equal(inspection.prepare('SELECT count(*) AS n FROM events').get().n, countAfterCalendar);
+  console.log('PASS sincronização: conversa prepara/confirma, calendário edita o mesmo ID e conversa consulta o horário atualizado, sem duplicação, inclusive após reiniciar.');
   console.log('PASS conversa: painel, tarefas, contexto, calendário natural, registro, conflito, confirmação natural após reinício, cancelamento, resposta perdida, concorrência, interpretação de planos e rotinas semanais, retomada após consulta, aplicação/desfazer e bloqueio de ações ou fontes falsas do modelo.');
 } finally {
   await stop(); inspection?.close();

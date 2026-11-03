@@ -3,9 +3,10 @@ import type { OpenTask } from '../agent/core/context.js';
 import type { EventDraft } from '../agent/core/request.js';
 import type { WeeklyPlan, PlanResult } from '../agent/core/weekly-plan.js';
 import type { PlanningDraft } from '../agent/core/assisted-plan.js';
+import type { ChangeDraft, EventChange, ChangeResult } from '../agent/core/event-change.js';
 
 export interface DemoReply {
-  kind: AgentResult['kind'] | PlanResult['kind'] | 'answer' | 'context_unavailable' | 'model_error';
+  kind: AgentResult['kind'] | PlanResult['kind'] | ChangeResult['kind'] | 'answer' | 'context_unavailable' | 'model_error';
   message: string;
   evidenceIds: string[];
   changed: boolean;
@@ -18,11 +19,13 @@ export interface DemoReply {
   diagnostics?: ResponseDiagnostics;
   pendingSchedule?: { date: string; start: string; end: string };
   planningDraft?: PlanningDraft;
-  continuation?: Pick<DemoReply, 'event' | 'suggestion' | 'plan' | 'eventDraft' | 'pendingSchedule' | 'planningDraft' | 'agendaQuery'>;
+  change?: EventChange;
+  changeDraft?: ChangeDraft;
+  continuation?: Pick<DemoReply, 'event' | 'suggestion' | 'plan' | 'eventDraft' | 'pendingSchedule' | 'planningDraft' | 'agendaQuery' | 'change' | 'changeDraft'>;
 }
 export interface ResponseDiagnostics {
   durationMs: number;
-  path: 'calendar' | 'tasks' | 'suggestion' | 'validation' | 'weekly_plan' | 'memory' | 'interpretation' | 'planning' | 'routing' | 'clarification';
+  path: 'calendar' | 'tasks' | 'suggestion' | 'validation' | 'weekly_plan' | 'memory' | 'interpretation' | 'planning' | 'routing' | 'clarification' | 'event_change';
   steps: string[];
   context?: { filesRead: number; charactersRead: number; charactersReturned: number; sourceIds: string[] };
   model?: {
@@ -53,4 +56,5 @@ export interface DemoPanel {
   tasks: OpenTask[];
   contextAvailable: boolean;
   plans: WeeklyPlan[];
+  changes?: EventChange[];
 }

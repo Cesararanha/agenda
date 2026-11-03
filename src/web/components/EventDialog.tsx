@@ -84,10 +84,13 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
 
   const fromVault = editing?.source === 'vault';
   const askScope = Boolean(editing?.recurring);
+  const occurrenceOnly = askScope && scope === 'this';
 
   async function save() {
     if (!title.trim()) return onError('Falta o titulo.');
     if (!date) return onError('Falta a data.');
+    if (!allDay && (!startTime || !endTime || endTime <= startTime)) return onError('Informe início e fim válidos. O fim precisa ser depois do início.');
+    if (allDay && endDate && endDate < date) return onError('A data final precisa ser igual ou posterior à inicial.');
     setBusy(true);
     try {
       const payload = {
@@ -98,7 +101,8 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         end: allDay ? endDate || date : `${date}T${endTime}`,
         notes: notes.trim() || null,
         location: location.trim() || null,
-        rrule: buildRrule(repeat, days, until, date),
+        rrule: editing && repeat === initialRepeat.repeat && days.join(',') === initialRepeat.days.join(',') && until === initialRepeat.until
+          ? editing.rrule : buildRrule(repeat, days, until, date),
       };
 
       if (editing) {
@@ -181,6 +185,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
             <label htmlFor="categoria">Categoria</label>
             <select
               id="categoria"
+              disabled={occurrenceOnly}
               value={category}
               onChange={(event) => setCategory(event.target.value as Category)}
             >
@@ -206,6 +211,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
           <label className="check">
             <input
               type="checkbox"
+              disabled={occurrenceOnly}
               checked={allDay}
               onChange={(event) => setAllDay(event.target.checked)}
             />
@@ -264,6 +270,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
             <label htmlFor="repete">Repete</label>
             <select
               id="repete"
+              disabled={occurrenceOnly}
               value={repeat}
               onChange={(event) => setRepeat(event.target.value as Repeat)}
             >
@@ -281,6 +288,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
               <input
                 id="ate"
                 type="date"
+                disabled={occurrenceOnly}
                 value={until}
                 onChange={(event) => setUntil(event.target.value)}
               />
@@ -288,6 +296,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
           )}
         </div>
 
+        {occurrenceOnly && <p>Para alterar categoria, dia inteiro ou repetição, selecione “Daqui pra frente” ou “A serie toda”.</p>}
         {repeat === 'custom' && (
           <div className="field">
             <label>Dias da semana</label>
@@ -296,6 +305,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
                 <button
                   key={label}
                   aria-pressed={days.includes(index)}
+                  disabled={occurrenceOnly}
                   onClick={() =>
                     setDays((current) =>
                       current.includes(index)

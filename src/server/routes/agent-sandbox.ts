@@ -8,6 +8,7 @@ import { BadRequest } from '../events.js';
 import { listOccurrences } from '../events.js';
 import { SandboxStore } from '../agent/sandbox-store.js';
 import { WeeklyStore } from '../agent/weekly-store.js';
+import { ChangeStore } from '../agent/change-store.js';
 import { converse, type ConversationPorts } from '../../agent/core/conversation.js';
 import { LocalContextReader } from '../../agent/core/context.js';
 import { wallMoment } from '../../agent/core/request.js';
@@ -23,6 +24,7 @@ interface TurnRow { request_id: string; input: string; reply: string }
 export async function agentSandboxRoutes(app: FastifyInstance): Promise<void> {
   const store = new SandboxStore();
   const plans = new WeeklyStore();
+  const changes = new ChangeStore();
   db.exec(`CREATE TABLE IF NOT EXISTS agent_sandbox_chat (
     conversation_id TEXT NOT NULL, request_id TEXT NOT NULL, input TEXT NOT NULL, reply TEXT NOT NULL,
     PRIMARY KEY (conversation_id, request_id)
@@ -44,6 +46,18 @@ export async function agentSandboxRoutes(app: FastifyInstance): Promise<void> {
       apply: (id, request) => { trace.record('plan_apply'); return plans.apply(id, request); },
       cancel: (id, request) => { trace.record('plan_cancel'); return plans.cancel(id, request); },
       undo: (id, request) => { trace.record('plan_undo'); return plans.undo(id, request); } },
+    changes: {
+      list: (from,to) => {trace.record('agenda');return changes.targets(from,to);},
+      prepare: (spec,request) => {trace.record('change_prepare');return changes.prepare(spec,request);},
+      apply: (id,request) => {trace.record('change_apply');return changes.apply(id,request);},
+      cancel: (id,request) => {trace.record('change_cancel');return changes.cancel(id,request);},
+      undo: (id,request) => {trace.record('change_undo');return changes.undo(id,request);},
+    },
+    changeModel: async (messages) => {
+      trace.record('interpret_change');trace.beginModel(client.config.model);
+      try {await client.check();trace.requestModel();const response=await client.extractChange(messages);trace.completeModel(response.metrics);return JSON.parse(response.content);}
+      catch(error){trace.failModel();throw error;}
+    },
     titleModel: async (input) => {
       trace.record('interpret_event'); trace.beginModel(client.config.model);
       try {
@@ -93,7 +107,7 @@ export async function agentSandboxRoutes(app: FastifyInstance): Promise<void> {
     try { tasks = (await reader.read('tasks')).openTasks; } catch { contextAvailable = false; }
     const day = clock().slice(0, 10);
     return { day, version: state.version, events: listOccurrences(day, day).map((item) => ({ id: item.id, allDay: item.allDay,
-      details: { title: item.title, start: item.start, end: item.end } })), suggestions: state.suggestions, plans: plans.list(), tasks, contextAvailable };
+      details: { title: item.title, start: item.start, end: item.end } })), suggestions: state.suggestions, plans: plans.list(), changes: changes.list(), tasks, contextAvailable };
   });
   app.get('/api/agent/sandbox/history', async (request): Promise<{ turns: DemoTurn[] }> => {
     const query = z.object({ conversationId: identifier }).strict().safeParse(request.query);
