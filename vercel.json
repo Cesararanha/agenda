@@ -1,4 +1,7 @@
 {
-  "buildCommand": "npm run build && cp -R dist/web/. public/",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/web",
+  "rewrites": [{ "source": "/api/:path*", "destination": "/api" }],
   "regions": ["gru1"]
 }
