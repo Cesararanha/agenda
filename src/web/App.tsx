@@ -237,7 +237,7 @@ export function App() {
             </button>
           ))}
         </div>
-        {!meta?.agentSandbox && <button onClick={syncVaults} disabled={busy} title="Rele os prazos do vault">
+        {!meta?.agentSandbox && Boolean(meta?.vaults.length) && <button onClick={syncVaults} disabled={busy} title="Rele os prazos do vault">
           Vault
         </button>}
         <button

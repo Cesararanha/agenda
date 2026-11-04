@@ -151,16 +151,16 @@ export interface SyncReport {
   removed: number;
 }
 
-export function syncVault(vault: VaultSource): SyncReport {
+export async function syncVault(vault: VaultSource): Promise<SyncReport> {
   const items = [...readTodo(vault), ...readDisciplinas(vault)];
   // dois arquivos podem citar o mesmo prazo; o externalId difere, entao desduplica por data+titulo
   const unique = new Map<string, VaultItem>();
   for (const item of items) unique.set(`${item.start}|${item.title.toLowerCase()}`, item);
 
-  const result = syncExternal('vault', `${vault.label}:`, [...unique.values()], `vault:${vault.label}`);
+  const result = await syncExternal('vault', `${vault.label}:`, [...unique.values()], `vault:${vault.label}`);
   return { vault: vault.label, path: vault.path, found: unique.size, ...result };
 }
 
-export function syncAllVaults(): SyncReport[] {
-  return config.vaults.map(syncVault);
+export async function syncAllVaults(): Promise<SyncReport[]> {
+  return Promise.all(config.vaults.map(syncVault));
 }

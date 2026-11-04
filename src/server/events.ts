@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { audit, db, queryAll, queryOne } from './db.js';
+import { audit, queryAll, queryOne, run, transaction } from './store.js';
 import { config } from './config.js';
+import { BadRequest, NotFound } from './errors.js';
 import {
   addDays,
   addMinutes,
@@ -38,12 +39,7 @@ interface OverrideRow {
   canceled: 0 | 1;
 }
 
-export class BadRequest extends Error {
-  readonly statusCode = 400;
-}
-export class NotFound extends Error {
-  readonly statusCode = 404;
-}
+export { BadRequest, NotFound };
 
 function normalizeCategory(value: unknown): Category {
   return CATEGORIES.includes(value as Category) ? (value as Category) : 'outro';
@@ -102,14 +98,14 @@ function rowToOccurrence(
   };
 }
 
-export function getSeries(id: string): EventRow | null {
+export async function getSeries(id: string): Promise<EventRow | null> {
   return queryOne<EventRow>('SELECT * FROM events WHERE id = ?', id);
 }
 
-function overridesFor(ids: string[]): Map<string, OverrideRow> {
+async function overridesFor(ids: string[]): Promise<Map<string, OverrideRow>> {
   if (!ids.length) return new Map();
   const placeholders = ids.map(() => '?').join(',');
-  const rows = queryAll<OverrideRow>(
+  const rows = await queryAll<OverrideRow>(
     `SELECT * FROM overrides WHERE event_id IN (${placeholders})`,
     ...ids,
   );
@@ -123,17 +119,17 @@ export interface ListFilters {
 }
 
 /** Ocorrencias concretas no intervalo [from, to], ja ordenadas. */
-export function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters = {}): Occurrence[] {
+export async function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters = {}): Promise<Occurrence[]> {
   if (!isDateStr(from) || !isDateStr(to)) throw new BadRequest("'from' e 'to' precisam ser 'YYYY-MM-DD'");
   if (from > to) throw new BadRequest("'from' precisa ser menor ou igual a 'to'");
 
-  const rows = queryAll<EventRow>(
+  const rows = await queryAll<EventRow>(
     `SELECT * FROM events
      WHERE is_suggestion = 0
-       AND ((rrule IS NULL AND substr(end, 1, 10) >= ? AND substr(start, 1, 10) <= ?)
+       AND ((rrule IS NULL AND substr("end", 1, 10) >= ? AND substr(start, 1, 10) <= ?)
             OR (rrule IS NOT NULL AND substr(start, 1, 10) <= ?)
             OR EXISTS (SELECT 1 FROM overrides o WHERE o.event_id = events.id AND o.canceled = 0
-              AND o.start IS NOT NULL AND substr(o.start, 1, 10) <= ? AND substr(COALESCE(o.end, o.start), 1, 10) >= ?))`,
+              AND o.start IS NOT NULL AND substr(o.start, 1, 10) <= ? AND substr(COALESCE(o."end", o.start), 1, 10) >= ?))`,
     from,
     to,
     to,
@@ -141,7 +137,7 @@ export function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters
     from,
   );
 
-  const overrides = overridesFor(rows.map((r) => r.id));
+  const overrides = await overridesFor(rows.map((r) => r.id));
   const out: Occurrence[] = [];
 
   for (const row of rows) {
@@ -184,7 +180,7 @@ export function listOccurrences(from: DateStr, to: DateStr, filters: ListFilters
   });
 }
 
-export function createEvent(input: EventInput, actor = 'app'): Occurrence {
+export async function createEvent(input: EventInput, actor = 'app'): Promise<Occurrence> {
   if (!input.title?.trim()) throw new BadRequest('titulo e obrigatorio');
 
   const start = normalizeMoment(input.start, 'start');
@@ -227,11 +223,8 @@ export function createEvent(input: EventInput, actor = 'app'): Occurrence {
     updated_at: timestamp,
   };
 
-  db.prepare(
-    `INSERT INTO events (id, title, notes, location, start, end, all_day, category, rrule, exdates, source, external_id, is_suggestion, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    row.id,
+  await run(`INSERT INTO events (id, title, notes, location, start, "end", all_day, category, rrule, exdates, source, external_id, is_suggestion, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, row.id,
     row.title,
     row.notes,
     row.location,
@@ -248,7 +241,7 @@ export function createEvent(input: EventInput, actor = 'app'): Occurrence {
     row.updated_at,
   );
 
-  audit(actor, 'create', { id: row.id, title: row.title, start: row.start, rrule: row.rrule });
+  await audit(actor, 'create', { id: row.id, title: row.title, start: row.start, rrule: row.rrule });
   return rowToOccurrence(row, dateOf(row.start), undefined);
 }
 
@@ -264,9 +257,9 @@ export interface PatchInput {
 }
 
 /** Edita a serie inteira. */
-function patchSeries(row: EventRow, patch: PatchInput, actor: string): Occurrence {
+async function patchSeries(row: EventRow, patch: PatchInput, actor: string): Promise<Occurrence> {
   const allDay = patch.allDay ?? row.all_day === 1;
-  if (allDay !== (row.all_day === 1) && queryOne<{ present: number }>('SELECT 1 AS present FROM overrides WHERE event_id = ? LIMIT 1', row.id)) {
+  if (allDay !== (row.all_day === 1) && await queryOne<{ present: number }>('SELECT 1 AS present FROM overrides WHERE event_id = ? LIMIT 1', row.id)) {
     throw new BadRequest('A série tem ocorrências editadas. Revise as exceções antes de mudar entre dia inteiro e horário definido. Nenhuma alteração foi aplicada.');
   }
   let start = patch.start ? normalizeMoment(patch.start, 'start') : row.start;
@@ -305,11 +298,8 @@ function patchSeries(row: EventRow, patch: PatchInput, actor: string): Occurrenc
     updated_at: new Date().toISOString(),
   };
 
-  db.prepare(
-    `UPDATE events SET title = ?, notes = ?, location = ?, start = ?, end = ?, all_day = ?,
-       category = ?, rrule = ?, updated_at = ? WHERE id = ?`,
-  ).run(
-    updated.title,
+  await run(`UPDATE events SET title = ?, notes = ?, location = ?, start = ?, "end" = ?, all_day = ?,
+       category = ?, rrule = ?, updated_at = ? WHERE id = ?`, updated.title,
     updated.notes,
     updated.location,
     updated.start,
@@ -321,25 +311,25 @@ function patchSeries(row: EventRow, patch: PatchInput, actor: string): Occurrenc
     updated.id,
   );
 
-  audit(actor, 'update:all', { id: updated.id, title: updated.title, start: updated.start });
+  await audit(actor, 'update:all', { id: updated.id, title: updated.title, start: updated.start });
   return rowToOccurrence(updated, dateOf(updated.start), undefined);
 }
 
 /** Edita so a ocorrencia daquele dia, deixando a serie intacta. */
-function patchOccurrence(
+async function patchOccurrence(
   row: EventRow,
   occurrenceDate: DateStr,
   patch: PatchInput,
   actor: string,
-): Occurrence {
+): Promise<Occurrence> {
   const current = rowToOccurrence(
     row,
     occurrenceDate,
-    queryOne<OverrideRow>(
+    (await queryOne<OverrideRow>(
       'SELECT * FROM overrides WHERE event_id = ? AND occurrence_date = ?',
       row.id,
       occurrenceDate,
-    ) ?? undefined,
+    )) ?? undefined,
   );
 
   if ((patch.allDay !== undefined && patch.allDay !== current.allDay)
@@ -365,14 +355,11 @@ function patchOccurrence(
     if (end <= start) end = addMinutes(start, 60);
   }
 
-  db.prepare(
-    `INSERT INTO overrides (event_id, occurrence_date, title, notes, location, start, end, canceled)
+  await run(`INSERT INTO overrides (event_id, occurrence_date, title, notes, location, start, "end", canceled)
      VALUES (?, ?, ?, ?, ?, ?, ?, 0)
      ON CONFLICT(event_id, occurrence_date) DO UPDATE SET
        title = excluded.title, notes = excluded.notes, location = excluded.location,
-       start = excluded.start, end = excluded.end, canceled = 0`,
-  ).run(
-    row.id,
+       start = excluded.start, "end" = excluded."end", canceled = 0`, row.id,
     occurrenceDate,
     patch.title?.trim() ?? current.title,
     patch.notes === undefined ? current.notes : patch.notes?.trim() || null,
@@ -381,18 +368,18 @@ function patchOccurrence(
     end,
     );
 
-  audit(actor, 'update:this', { id: row.id, occurrenceDate, start });
-  return listOccurrences(dateOf(start), dateOf(start)).find((o) => o.seriesId === row.id && o.occurrenceDate === occurrenceDate) ??
+  await audit(actor, 'update:this', { id: row.id, occurrenceDate, start });
+  return (await listOccurrences(dateOf(start), dateOf(start))).find((o) => o.seriesId === row.id && o.occurrenceDate === occurrenceDate) ??
     rowToOccurrence(row, occurrenceDate, undefined);
 }
 
 /** Corta a serie no dia e recomeca uma nova com os valores novos. */
-function patchFuture(
+async function patchFuture(
   row: EventRow,
   occurrenceDate: DateStr,
   patch: PatchInput,
   actor: string,
-): Occurrence {
+): Promise<Occurrence> {
   const rule = parseRrule(row.rrule);
   if (!rule) return patchSeries(row, patch, actor);
 
@@ -402,7 +389,7 @@ function patchFuture(
     return patchSeries(row, patch, actor);
   }
 
-  const futureOverrides = queryAll<OverrideRow>('SELECT * FROM overrides WHERE event_id = ? AND occurrence_date >= ?', row.id, occurrenceDate);
+  const futureOverrides = await queryAll<OverrideRow>('SELECT * FROM overrides WHERE event_id = ? AND occurrence_date >= ?', row.id, occurrenceDate);
   const exdates = JSON.parse(row.exdates || '[]') as string[];
   const futureExdates = exdates.filter((date) => date >= occurrenceDate);
   const inheritedRule = patch.rrule === undefined || patch.rrule === row.rrule;
@@ -412,15 +399,14 @@ function patchFuture(
   }
   const remaining = rule.count ? rule.count - occurrenceDates(dateOf(row.start), rule, dateOf(row.start), cutoff).length : undefined;
   const trimmed: Rrule = { ...rule, until: cutoff };
-  db.prepare('UPDATE events SET rrule = ?, exdates = ?, updated_at = ? WHERE id = ?').run(
-    formatRrule(trimmed),
+  await run('UPDATE events SET rrule = ?, exdates = ?, updated_at = ? WHERE id = ?', formatRrule(trimmed),
     JSON.stringify(exdates.filter((date) => date < occurrenceDate)),
     new Date().toISOString(),
     row.id,
   );
 
   const current = rowToOccurrence(row, occurrenceDate, undefined);
-  const created = createEvent(
+  const created = await createEvent(
     {
       title: patch.title ?? current.title,
       notes: patch.notes === undefined ? current.notes : patch.notes,
@@ -435,24 +421,24 @@ function patchFuture(
     actor,
   );
 
-  if (futureExdates.length) db.prepare('UPDATE events SET exdates = ? WHERE id = ?').run(JSON.stringify(futureExdates), created.seriesId);
-  db.prepare('UPDATE overrides SET event_id = ? WHERE event_id = ? AND occurrence_date >= ?').run(created.seriesId, row.id, occurrenceDate);
+  if (futureExdates.length) await run('UPDATE events SET exdates = ? WHERE id = ?', JSON.stringify(futureExdates), created.seriesId);
+  await run('UPDATE overrides SET event_id = ? WHERE event_id = ? AND occurrence_date >= ?', created.seriesId, row.id, occurrenceDate);
 
-  audit(actor, 'update:future', { id: row.id, from: occurrenceDate, newId: created.seriesId });
+  await audit(actor, 'update:future', { id: row.id, from: occurrenceDate, newId: created.seriesId });
   return created;
 }
 
-export function updateEvent(
+export async function updateEvent(
   id: string,
   patch: PatchInput,
   scope: EditScope = 'all',
   occurrenceDate?: DateStr,
   actor = 'app',
-): Occurrence {
-  return eventTransaction(() => updateEventInternal(id, patch, scope, occurrenceDate, actor));
+): Promise<Occurrence> {
+  return transaction(() => updateEventInternal(id, patch, scope, occurrenceDate, actor));
 }
-function updateEventInternal(id: string, patch: PatchInput, scope: EditScope, occurrenceDate: DateStr | undefined, actor: string): Occurrence {
-  const row = getSeries(id);
+async function updateEventInternal(id: string, patch: PatchInput, scope: EditScope, occurrenceDate: DateStr | undefined, actor: string): Promise<Occurrence> {
+  const row = await getSeries(id);
   if (!row) throw new NotFound(`evento ${id} nao existe`);
 
   if (scope === 'all' || !row.rrule) return patchSeries(row, patch, actor);
@@ -466,21 +452,21 @@ function updateEventInternal(id: string, patch: PatchInput, scope: EditScope, oc
   return patchFuture(row, occurrenceDate, patch, actor);
 }
 
-export function deleteEvent(
+export async function deleteEvent(
   id: string,
   scope: EditScope = 'all',
   occurrenceDate?: DateStr,
   actor = 'app',
-): { deleted: EditScope } {
-  return eventTransaction(() => deleteEventInternal(id, scope, occurrenceDate, actor));
+): Promise<{ deleted: EditScope }> {
+  return transaction(() => deleteEventInternal(id, scope, occurrenceDate, actor));
 }
-function deleteEventInternal(id: string, scope: EditScope, occurrenceDate: DateStr | undefined, actor: string): { deleted: EditScope } {
-  const row = getSeries(id);
+async function deleteEventInternal(id: string, scope: EditScope, occurrenceDate: DateStr | undefined, actor: string): Promise<{ deleted: EditScope }> {
+  const row = await getSeries(id);
   if (!row) throw new NotFound(`evento ${id} nao existe`);
 
   if (scope === 'all' || !row.rrule) {
-    db.prepare('DELETE FROM events WHERE id = ?').run(id);
-    audit(actor, 'delete:all', { id, title: row.title });
+    await run('DELETE FROM events WHERE id = ?', id);
+    await audit(actor, 'delete:all', { id, title: row.title });
     return { deleted: 'all' };
   }
 
@@ -494,61 +480,44 @@ function deleteEventInternal(id: string, scope: EditScope, occurrenceDate: DateS
   if (scope === 'this') {
     const exdates = new Set<string>(JSON.parse(row.exdates || '[]') as string[]);
     exdates.add(occurrenceDate);
-    db.prepare('UPDATE events SET exdates = ?, updated_at = ? WHERE id = ?').run(
-      JSON.stringify([...exdates].sort()),
+    await run('UPDATE events SET exdates = ?, updated_at = ? WHERE id = ?', JSON.stringify([...exdates].sort()),
       new Date().toISOString(),
       id,
     );
-    db.prepare('DELETE FROM overrides WHERE event_id = ? AND occurrence_date = ?').run(
-      id,
+    await run('DELETE FROM overrides WHERE event_id = ? AND occurrence_date = ?', id,
       occurrenceDate,
     );
-    audit(actor, 'delete:this', { id, occurrenceDate });
+    await audit(actor, 'delete:this', { id, occurrenceDate });
     return { deleted: 'this' };
   }
 
   const rule = parseRrule(row.rrule);
   const cutoff = addDays(occurrenceDate, -1);
   if (!rule || cutoff < dateOf(row.start)) {
-    db.prepare('DELETE FROM events WHERE id = ?').run(id);
-    audit(actor, 'delete:future->all', { id });
+    await run('DELETE FROM events WHERE id = ?', id);
+    await audit(actor, 'delete:future->all', { id });
     return { deleted: 'all' };
   }
-  db.prepare('UPDATE events SET rrule = ?, updated_at = ? WHERE id = ?').run(
-    formatRrule({ ...rule, until: cutoff }),
+  await run('UPDATE events SET rrule = ?, updated_at = ? WHERE id = ?', formatRrule({ ...rule, until: cutoff }),
     new Date().toISOString(),
     id,
   );
-  db.prepare('DELETE FROM overrides WHERE event_id = ? AND occurrence_date >= ?').run(id, occurrenceDate);
-  audit(actor, 'delete:future', { id, from: occurrenceDate });
+  await run('DELETE FROM overrides WHERE event_id = ? AND occurrence_date >= ?', id, occurrenceDate);
+  await audit(actor, 'delete:future', { id, from: occurrenceDate });
   return { deleted: 'future' };
 }
 
-/** SAVEPOINT preserva também a transação de quem chamou, como os planos do agente. */
-function eventTransaction<T>(run: () => T): T {
-  db.exec('SAVEPOINT agenda_event_change');
-  try {
-    const result = run();
-    db.exec('RELEASE agenda_event_change');
-    return result;
-  } catch (error) {
-    db.exec('ROLLBACK TO agenda_event_change');
-    db.exec('RELEASE agenda_event_change');
-    throw error;
-  }
-}
-
 /** Sincroniza os itens de um vault: cria, atualiza e remove o que saiu de la. */
-export function syncExternal(
+export async function syncExternal(
   source: EventSource,
   prefix: string,
   items: Array<EventInput & { externalId: string }>,
   actor = 'vault',
-): { created: number; updated: number; removed: number } {
-  const existing = queryAll<
+): Promise<{ created: number; updated: number; removed: number }> {
+  const existing = await queryAll<
     Pick<EventRow, 'id' | 'external_id' | 'title' | 'start' | 'end' | 'all_day' | 'category' | 'notes'>
   >(
-    `SELECT id, external_id, title, start, end, all_day, category, notes
+    `SELECT id, external_id, title, start, "end", all_day, category, notes
      FROM events WHERE source = ? AND external_id LIKE ?`,
     source,
     `${prefix}%`,
@@ -563,7 +532,7 @@ export function syncExternal(
     seen.add(item.externalId);
     const current = byExternal.get(item.externalId);
     if (!current) {
-      createEvent({ ...item, source }, actor);
+      await createEvent({ ...item, source }, actor);
       created++;
       continue;
     }
@@ -573,7 +542,7 @@ export function syncExternal(
       current.start !== start ||
       (item.notes ?? null) !== current.notes;
     if (changed) {
-      updateEvent(
+      await updateEvent(
         current.id,
         { title: item.title, start: item.start, end: item.end, notes: item.notes ?? null, category: item.category },
         'all',
@@ -587,11 +556,11 @@ export function syncExternal(
   let removed = 0;
   for (const [externalId, row] of byExternal) {
     if (seen.has(externalId)) continue;
-    db.prepare('DELETE FROM events WHERE id = ?').run(row.id);
+    await run('DELETE FROM events WHERE id = ?', row.id);
     removed++;
   }
 
-  audit(actor, 'sync', { source, prefix, created, updated, removed });
+  await audit(actor, 'sync', { source, prefix, created, updated, removed });
   return { created, updated, removed };
 }
 
@@ -602,9 +571,9 @@ export function syncExternal(
  * prazo que vem do vault sabe o dia, nunca a hora, entao vive aqui ate ele
  * decidir a hora. Nada se perde, so nao polui a semana.
  */
-export function listSuggestions(from: DateStr, to: DateStr): Occurrence[] {
+export async function listSuggestions(from: DateStr, to: DateStr): Promise<Occurrence[]> {
   if (!isDateStr(from) || !isDateStr(to)) throw new BadRequest("'from' e 'to' precisam ser 'YYYY-MM-DD'");
-  const rows = queryAll<EventRow>(
+  const rows = await queryAll<EventRow>(
     `SELECT * FROM events
      WHERE is_suggestion = 1 AND substr(start, 1, 10) >= ? AND substr(start, 1, 10) <= ?
      ORDER BY start`,
@@ -615,8 +584,8 @@ export function listSuggestions(from: DateStr, to: DateStr): Occurrence[] {
 }
 
 /** Resumo em texto, pro WhatsApp e pras IAs. */
-export function summarize(from: DateStr, to: DateStr): string {
-  const occurrences = listOccurrences(from, to);
+export async function summarize(from: DateStr, to: DateStr): Promise<string> {
+  const occurrences = await listOccurrences(from, to);
   if (!occurrences.length) return 'Nada na agenda nesse periodo.';
 
   const byDay = new Map<DateStr, Occurrence[]>();

@@ -1,6 +1,6 @@
 // Exercita a API existente em processo separado, banco temporário e vaults desativados.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -19,7 +19,8 @@ await new Promise((resolve) => reservation.close(resolve));
 const base = `http://127.0.0.1:${port}`;
 const child = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/server/index.ts'], {
   cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env,
-    AGENDA_DB: path.join(temp, 'test.db'), AGENDA_HOST: '127.0.0.1', AGENDA_PORT: String(port),
+    // Com DATABASE_URL explícito e AGENDA_DB vazio, roda no Postgres de teste.
+    AGENDA_DB: process.env.DATABASE_URL && process.env.AGENDA_DB === '' ? '' : path.join(temp, 'test.db'), AGENDA_HOST: '127.0.0.1', AGENDA_PORT: String(port),
     AGENDA_VAULTS: '', AGENDA_TOKEN: token, AGENDA_ALLOW_LOCAL: '1', AGENDA_SERVE_WEB: '1',
     AGENDA_AGENT_SANDBOX: '0', AGENT_OLLAMA_URL: base,
     WHATSAPP_ACCESS_TOKEN: '', WHATSAPP_APP_SECRET: '', AGENDA_LOG_LEVEL: 'silent',
@@ -46,6 +47,11 @@ try {
   assert.equal((await fetch(base + '/')).status, 200, 'PWA');
   assert.deepEqual((await request('/api/meta')).body.vaults, [], 'vaults precisam estar desligados');
   assert.equal((await request('/api/agent/sandbox/state')).status, 404, 'agente não é exposto por padrão');
+  assert.equal((await request(`/api/meta?token=${token}`, 'GET', undefined, { 'x-forwarded-for': '203.0.113.9' })).status, 401, 'token na URL não vale');
+  // Na nuvem não existe modo aberto: sem token, o servidor não sobe.
+  const open = spawnSync(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'src/server/config.ts'], { cwd: root, encoding: 'utf8',
+    env: { ...process.env, VERCEL: '1', AGENDA_DB: '', DATABASE_URL: 'postgresql://nunca-conecta', AGENDA_TOKEN: '' } });
+  assert.notEqual(open.status, 0, 'nuvem sem token precisa falhar');
   for (const header of ['x-forwarded-for', 'cf-connecting-ip']) {
     assert.equal((await request('/api/meta', 'GET', undefined, { [header]: '203.0.113.9' })).status, 401);
     assert.equal((await request('/api/meta', 'GET', undefined, { [header]: '203.0.113.9', 'x-agenda-token': token })).status, 200);

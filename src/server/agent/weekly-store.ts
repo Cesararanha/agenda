@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { db, queryAll, queryOne, audit } from '../db.js';
-import { listOccurrences, createEvent, deleteEvent, BadRequest } from '../events.js';
+import { listOccurrences, createEvent, deleteEvent, BadRequest } from './sandbox-events.js';
 import { addDays, formatDateBR } from '../../shared/dates.js';
 import { humanRequest } from '../../agent/core/request.js';
 import { describePlan, weeklyRequest, planOccurrences, firstWeeklyOverlap, type WeeklyRequest, type WeeklyPlan, type PlanResult } from '../../agent/core/weekly-plan.js';

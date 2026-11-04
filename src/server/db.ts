@@ -53,6 +53,17 @@ db.exec(`
     action    TEXT NOT NULL,
     detail    TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS whatsapp_proposals (
+    code TEXT PRIMARY KEY,
+    sender TEXT NOT NULL,
+    message_id TEXT,
+    expires INTEGER NOT NULL,
+    drafts TEXT NOT NULL,
+    preview TEXT NOT NULL,
+    confirmed INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (sender, message_id)
+  );
 `);
 
 // Banco criado antes da coluna de sugestao precisa ganhar ela sem perder dado.

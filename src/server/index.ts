@@ -6,9 +6,8 @@ import { config } from './config.js';
 import { eventRoutes } from './routes/events.js';
 import { vaultRoutes } from './routes/vault.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
-import { agentSandboxRoutes } from './routes/agent-sandbox.js';
 import { syncAllVaults } from './vault/importer.js';
-import { BadRequest, NotFound } from './events.js';
+import { BadRequest, NotFound } from './errors.js';
 
 const app = Fastify({
   logger: {
@@ -78,8 +77,7 @@ app.addHook('onRequest', async (request, reply) => {
 
   const header = request.headers['x-agenda-token'];
   const bearer = (request.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
-  const query = (request.query as { token?: string } | undefined)?.token;
-  const provided = (typeof header === 'string' ? header : '') || bearer || query || '';
+  const provided = (typeof header === 'string' ? header : '') || bearer;
 
   if (provided !== config.token) {
     return reply.code(401).send({ error: 'token invalido ou ausente (header x-agenda-token)' });
@@ -99,7 +97,11 @@ app.get('/api/health', async () => ({ ok: true, tz: config.tz }));
 await app.register(eventRoutes);
 await app.register(vaultRoutes);
 await app.register(whatsappRoutes);
-if (config.agentSandbox) await app.register(agentSandboxRoutes);
+if (config.agentSandbox) {
+  // Só a demo carrega o SQLite síncrono: na nuvem o disco é só leitura.
+  const { agentSandboxRoutes } = await import('./routes/agent-sandbox.js');
+  await app.register(agentSandboxRoutes);
+}
 
 if (config.serveWeb) {
   await app.register(fastifyStatic, { root: config.webDir });
@@ -120,13 +122,13 @@ function lanAddress(): string | null {
 }
 
 try {
-  const reports = syncAllVaults();
+  const reports = await syncAllVaults();
   for (const report of reports) {
     app.log.info(
       `vault '${report.vault}': ${report.found} prazos (${report.created} novos, ${report.updated} atualizados, ${report.removed} removidos)`,
     );
   }
-  if (!reports.length) app.log.warn('nenhum vault configurado (AGENDA_VAULTS no .env)');
+  if (!reports.length && !config.databaseUrl) app.log.warn('nenhum vault configurado (AGENDA_VAULTS no .env)');
 } catch (error) {
   app.log.error({ err: error }, 'falha ao sincronizar vault');
 }
@@ -141,4 +143,4 @@ if (lan && config.host === '0.0.0.0') {
 if (!config.token) {
   app.log.warn('AGENDA_TOKEN vazio: qualquer um na sua rede abre a agenda. Gere um antes de usar no celular.');
 }
-app.log.info(`banco: ${path.relative(process.cwd(), config.dbPath)}`);
+app.log.info(config.databaseUrl ? 'banco: Postgres' : `banco: ${path.relative(process.cwd(), config.dbPath)}`);

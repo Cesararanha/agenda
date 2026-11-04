@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { db, queryAll, queryOne } from '../db.js';
-import { createEvent, updateEvent, listOccurrences, getSeries, BadRequest } from '../events.js';
+import { createEvent, updateEvent, listOccurrences, getSeries, BadRequest } from './sandbox-events.js';
 import { addDays, diffDays, now } from '../../shared/dates.js';
 import { config } from '../config.js';
 import { humanRequest, parseRequest, timedEvent, wallMoment, type TimedEvent } from '../../agent/core/request.js';

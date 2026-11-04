@@ -47,14 +47,14 @@ if (!tunel) {
 
 if (tunel) {
   console.log('\nDe qualquer rede (o tunel esta no ar):\n');
-  console.log(`  ${tunel.replace(/\/$/, '')}/?token=${token}`);
+  console.log(`  ${tunel.replace(/\/$/, '')}/   (a tela de acesso pede o token)`);
 }
 
 console.log('\nNa mesma rede wi-fi:\n');
-for (const ip of ips) console.log(`  http://${ip}:${port}/?token=${token}`);
+for (const ip of ips) console.log(`  http://${ip}:${port}/   (a tela de acesso pede o token)`);
 if (!ips.length) console.log('  (nenhum endereco de rede encontrado: o Mac esta sem wi-fi?)');
 
-console.log('\nO token fica salvo no aparelho e some da barra de endereco.');
+console.log('\nNa primeira vez, digite o AGENDA_TOKEN do .env. Ele fica salvo no aparelho.');
 console.log('Depois: Compartilhar > Adicionar a Tela de Inicio, e vira app.');
 if (tunel) {
   console.log('\nAtencao: a URL do tunel muda toda vez que ele sobe, e o Mac precisa');

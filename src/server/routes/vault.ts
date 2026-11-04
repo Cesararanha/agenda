@@ -9,7 +9,7 @@ export async function vaultRoutes(app: FastifyInstance): Promise<void> {
       'Leitura apenas. O cofre do SENAI nao deve ser configurado aqui: ele entra numa instancia rodando na conta do SENAI.',
   }));
 
-  app.post('/api/vaults/sync', async () => ({ reports: syncAllVaults() }));
+  app.post('/api/vaults/sync', async () => ({ reports: await syncAllVaults() }));
 
   app.post<{ Params: { label: string } }>('/api/vaults/:label/sync', async (request, reply) => {
     const vault = config.vaults.find((v) => v.label === request.params.label);

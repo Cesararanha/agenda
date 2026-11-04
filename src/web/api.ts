@@ -3,20 +3,10 @@ import type { Occurrence } from '../shared/types.js';
 import type { DemoReply, DemoPanel, DemoTurn } from '../shared/agent.js';
 
 /**
- * No Mac o token nao e exigido; no celular ele vem da URL (?token=...) uma vez
- * e fica guardado no localStorage do aparelho.
+ * No Mac o token nao e exigido; fora dele, a tela de acesso pede uma vez e
+ * guarda no localStorage do aparelho. Nunca na URL, que pode parar em log.
  */
 function readToken(): string {
-  const fromUrl = new URLSearchParams(location.search).get('token');
-  if (fromUrl) {
-    try {
-      localStorage.setItem('agenda:token', fromUrl);
-    } catch {
-      // modo privado: segue sem guardar
-    }
-    history.replaceState(null, '', location.pathname);
-    return fromUrl;
-  }
   try {
     return localStorage.getItem('agenda:token') ?? '';
   } catch {
@@ -24,7 +14,19 @@ function readToken(): string {
   }
 }
 
-const token = readToken();
+let token = readToken();
+
+export function setAccessToken(value: string): void {
+  token = value;
+  try {
+    if (value) localStorage.setItem('agenda:token', value);
+    else localStorage.removeItem('agenda:token');
+  } catch {
+    // modo privado: vale so nesta aba
+  }
+}
+
+export class Unauthorized extends Error {}
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -35,6 +37,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (response.status === 401) throw new Unauthorized('Token incorreto.');
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok) {

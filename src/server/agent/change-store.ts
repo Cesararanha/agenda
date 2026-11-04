@@ -2,7 +2,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { z } from 'zod';
 import { db, queryAll, queryOne, audit } from '../db.js';
 import { config } from '../config.js';
-import { getSeries, listOccurrences, updateEvent, deleteEvent, BadRequest } from '../events.js';
+import { getSeries, listOccurrences, updateEvent, deleteEvent, BadRequest } from './sandbox-events.js';
 import { addDays } from '../../shared/dates.js';
 import { humanRequest, timedEvent, wallMoment } from '../../agent/core/request.js';
 import { describeChange, type ChangeTarget, type ChangeSpec, type EventChange, type ChangeResult } from '../../agent/core/event-change.js';

@@ -60,7 +60,7 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     return {
       from,
       to,
-      events: listOccurrences(from, to, { category: q.category, source: q.source, search: q.q }),
+      events: await listOccurrences(from, to, { category: q.category, source: q.source, search: q.q }),
     };
   });
 
@@ -69,43 +69,43 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     const q = request.query;
     const from = q.from ?? today(config.tz);
     const to = q.to ?? addDays(from, 90);
-    return { from, to, suggestions: listSuggestions(from, to) };
+    return { from, to, suggestions: await listSuggestions(from, to) };
   });
 
   app.get<{ Querystring: RangeQuery }>('/api/week', async (request) => {
     const anchor = request.query.date ?? today(config.tz);
     const from = startOfWeek(anchor);
     const to = endOfWeek(anchor);
-    return { from, to, events: listOccurrences(from, to) };
+    return { from, to, events: await listOccurrences(from, to) };
   });
 
   app.get<{ Querystring: RangeQuery }>('/api/month', async (request) => {
     const anchor = request.query.date ?? today(config.tz);
     const from = startOfWeek(startOfMonth(anchor));
     const to = addDays(from, 41);
-    return { from, to, month: anchor.slice(0, 7), monthEnd: endOfMonth(anchor), events: listOccurrences(from, to) };
+    return { from, to, month: anchor.slice(0, 7), monthEnd: endOfMonth(anchor), events: await listOccurrences(from, to) };
   });
 
   app.get<{ Params: { date: string } }>('/api/day/:date', async (request) => {
     const { date } = request.params;
-    return { date, events: listOccurrences(date, date) };
+    return { date, events: await listOccurrences(date, date) };
   });
 
   app.get<{ Querystring: RangeQuery }>('/api/summary', async (request) => {
     const from = request.query.from ?? today(config.tz);
     const to = request.query.to ?? from;
-    return { from, to, text: summarize(from, to) };
+    return { from, to, text: await summarize(from, to) };
   });
 
   app.get<{ Params: { id: string } }>('/api/events/:id', async (request, reply) => {
-    const row = getSeries(request.params.id);
+    const row = await getSeries(request.params.id);
     if (!row) return reply.code(404).send({ error: 'evento nao encontrado' });
     return row;
   });
 
   app.post('/api/events', async (request, reply) => {
     const body = request.body as Record<string, unknown>;
-    const created = createEvent(
+    const created = await createEvent(
       {
         title: String(body.title ?? ''),
         start: String(body.start ?? ''),
@@ -136,7 +136,7 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     if (suggestionId !== undefined && (typeof suggestionId !== 'string' || parsed.data.length !== 1 || !parsed.data[0]?.time)) {
       return reply.code(400).send({ error: 'Escolha um horário para a sugestão.' });
     }
-    return reply.code(201).send({ events: saveQuickAdd(parsed.data, 'app', {
+    return reply.code(201).send({ events: await saveQuickAdd(parsed.data, 'app', {
       allowSuggestions: body?.saveWithoutTime === true, replaceSuggestion: suggestionId,
     }) });
   });

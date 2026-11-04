@@ -31,6 +31,14 @@ function parseVaults(raw: string | undefined): VaultSource[] {
 }
 
 const dbPath = process.env.AGENDA_DB?.trim() || path.join(ROOT, 'data', 'agenda.db');
+// AGENDA_DB tem prioridade: os testes usam banco temporário mesmo com DATABASE_URL no .env.
+const databaseUrl = process.env.AGENDA_DB?.trim() ? '' : process.env.DATABASE_URL?.trim() || '';
+const cloud = Boolean(process.env.VERCEL);
+const token = process.env.AGENDA_TOKEN?.trim() || '';
+if (cloud && (!databaseUrl || !token)) {
+  // Na internet não existe modo aberto: sem isso, nenhuma rota sobe.
+  throw new Error('Na nuvem, DATABASE_URL e AGENDA_TOKEN são obrigatórios.');
+}
 const agentSandbox = process.env.AGENDA_AGENT_SANDBOX === '1';
 if (agentSandbox) {
   // Esse adaptador ainda não pode ser ligado ao banco pessoal, mesmo por engano.
@@ -40,7 +48,7 @@ if (agentSandbox) {
     || !path.basename(parent).startsWith('agenda-agent-sandbox-')
     || fs.lstatSync(dbPath, { throwIfNoEntry: false })?.isSymbolicLink()
     || process.env.AGENDA_VAULTS?.trim() || process.env.WHATSAPP_ACCESS_TOKEN?.trim()
-    || process.env.WHATSAPP_APP_SECRET?.trim()) {
+    || process.env.WHATSAPP_APP_SECRET?.trim() || databaseUrl) {
     throw new Error('O agente sandbox exige banco em diretório temporário agenda-agent-sandbox-*, sem vaults ou WhatsApp.');
   }
 }
@@ -53,12 +61,16 @@ export const config = {
   dbDir: path.dirname(dbPath),
   webDir: path.join(ROOT, 'dist', 'web'),
   serveWeb: process.env.AGENDA_SERVE_WEB === '1' && fs.existsSync(path.join(ROOT, 'dist', 'web')),
-  token: process.env.AGENDA_TOKEN?.trim() || '',
-  allowLocal: process.env.AGENDA_ALLOW_LOCAL !== '0',
+  databaseUrl,
+  databaseCa: process.env.DATABASE_CA?.trim().replace(/\\n/g, '\n') || '',
+  cloud,
+  token,
+  allowLocal: !cloud && process.env.AGENDA_ALLOW_LOCAL !== '0',
   agentSandbox,
   agentDemoNow: agentSandbox ? process.env.AGENDA_AGENT_DEMO_NOW?.trim() || '' : '',
   agentDemoId: agentSandbox ? process.env.AGENDA_AGENT_DEMO_ID?.trim() || '' : '',
-  vaults: parseVaults(process.env.AGENDA_VAULTS),
+  // A regra do vault proíbe sync em nuvem: com banco remoto, o importador não roda.
+  vaults: databaseUrl ? [] : parseVaults(process.env.AGENDA_VAULTS),
   whatsapp: {
     enabled: Boolean(process.env.WHATSAPP_ACCESS_TOKEN?.trim()),
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN?.trim() || '',

@@ -110,8 +110,8 @@ Na mesma rede wi-fi:
 npm run link
 ```
 
-Isso imprime o endereco com o token embutido (`http://192.168.x.x:8787/?token=...`).
-Abra no celular uma vez: o token fica guardado no aparelho e some da barra de endereco.
+Isso imprime o endereco (`http://192.168.x.x:8787/`). Na primeira vez, a tela de acesso pede o `AGENDA_TOKEN` do `.env`.
+Depois disso, ele fica guardado no aparelho.
 No iPhone, Compartilhar > Adicionar a Tela de Inicio, e ela abre como app.
 
 A tela abre sem token, mas **os dados so vem com ele**: sem token a API responde 401.

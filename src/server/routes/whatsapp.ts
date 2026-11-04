@@ -12,7 +12,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
-import { audit } from '../db.js';
+import { audit } from '../store.js';
 import { summarize } from '../events.js';
 import { parseRangeQuery } from '../nlp.js';
 import { whatsappProposal } from '../agent/whatsapp-proposals.js';
@@ -82,7 +82,7 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
   // como destinatario. Quando der 131030, tentar a outra forma antes de desistir.
   const alternativo = variacoesNumero(to).find((n) => n !== to);
   if (alternativo && codigoDoErro(texto) === NAO_PERMITIDO) {
-    audit('whatsapp', 'send:retry', { de: to, para: alternativo });
+    await audit('whatsapp', 'send:retry', { de: to, para: alternativo });
     response = await postMensagem(alternativo, body);
     if (response.ok) return;
     texto = await response.text();
@@ -90,7 +90,7 @@ export async function sendWhatsApp(to: string, body: string): Promise<void> {
 
   const codigo = codigoDoErro(texto);
   const acao = codigo === TOKEN_EXPIRADO ? 'send:token-expirado' : 'send:error';
-  audit('whatsapp', acao, { status: response.status, codigo, body: texto });
+  await audit('whatsapp', acao, { status: response.status, codigo, body: texto });
 }
 
 /** Decide o que uma mensagem significa e devolve a resposta em texto. */
@@ -101,7 +101,7 @@ export async function handleMessage(text: string, sender: string, messageId?: st
 
   const range = parseRangeQuery(trimmed, config.tz);
   if (range) {
-    const resumo = summarize(range.from, range.to);
+    const resumo = await summarize(range.from, range.to);
     return `*${range.label}* (${formatDateBR(range.from)}${range.from === range.to ? '' : ` a ${formatDateBR(range.to)}`})\n\n${resumo}`;
   }
 
@@ -197,10 +197,8 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/whatsapp/webhook', async (request, reply) => {
     if (!signatureOk(request)) {
-      audit('whatsapp', 'signature:rejeitada', {
-        ip: request.ip,
-        motivo: config.whatsapp.appSecret ? 'assinatura nao confere' : 'WHATSAPP_APP_SECRET vazio',
-      });
+      // Com o WhatsApp desligado, o webhook público não enche a auditoria.
+      if (config.whatsapp.appSecret) await audit('whatsapp', 'signature:rejeitada', { ip: request.ip, motivo: 'assinatura nao confere' });
       return reply.code(403).send({ error: 'assinatura invalida' });
     }
 
@@ -216,7 +214,7 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
     // sent / delivered / read / failed de cada mensagem que a agenda mandou.
     // Fica so no audit: e o unico jeito de saber se a Meta entregou de verdade.
     for (const status of changes.flatMap((c) => c.value?.statuses ?? [])) {
-      audit('whatsapp', `status:${status.status ?? 'desconhecido'}`, {
+      await audit('whatsapp', `status:${status.status ?? 'desconhecido'}`, {
         para: status.recipient_id,
         mensagem: status.id,
         erros: status.errors,
@@ -228,7 +226,7 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
     // iguais no audit, e a diferenca entre as duas e o diagnostico inteiro.
     const temStatus = changes.some((c) => (c.value?.statuses?.length ?? 0) > 0);
     if (messages.length === 0 && !temStatus) {
-      audit('whatsapp', 'webhook:ignorado', {
+      await audit('whatsapp', 'webhook:ignorado', {
         campos: changes.map((c) => c.field || Object.keys(c.value ?? {}).join('+') || 'vazio'),
       });
     }
@@ -237,7 +235,7 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
       const from = (message.from ?? '').replace(/\D/g, '');
       if (!from) continue;
       if (config.whatsapp.allowedFrom && !mesmoNumero(from, config.whatsapp.allowedFrom)) {
-        audit('whatsapp', 'blocked', { from });
+        await audit('whatsapp', 'blocked', { from });
         continue;
       }
       if (message.type !== 'text' || !message.text?.body) {
@@ -247,11 +245,11 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
       try {
         const canonical = variacoesNumero(from).reduce((shortest, n) => n.length < shortest.length ? n : shortest);
         const answer = await handleMessage(message.text.body, canonical, message.id);
-        audit('whatsapp', 'message', { from, text: message.text.body });
+        await audit('whatsapp', 'message', { from, text: message.text.body });
         await sendWhatsApp(from, answer);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        audit('whatsapp', 'error', { from, detail });
+        await audit('whatsapp', 'error', { from, detail });
         await sendWhatsApp(from, `Nao consegui: ${detail}\n\nManda *ajuda* pra ver os comandos.`);
       }
     }

@@ -777,3 +777,22 @@ button:focus-visible {
   .demo-composer { grid-template-columns: 1fr; }
   .demo-composer button { justify-self: end; }
 }
+
+.access-gate {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.access-gate form {
+  width: min(100%, 320px);
+  display: grid;
+  gap: 10px;
+}
+.access-gate h1 {
+  margin: 0 0 8px;
+}
+.access-gate p {
+  margin: 0;
+  color: #b42318;
+}

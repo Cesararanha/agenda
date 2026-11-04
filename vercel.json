@@ -1,0 +1,4 @@
+{
+  "buildCommand": "npm run build && cp -R dist/web/. public/",
+  "regions": ["gru1"]
+}

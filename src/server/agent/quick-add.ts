@@ -7,8 +7,8 @@ import { occurrenceDates, parseRrule } from '../../shared/recurrence.js';
 import type { QuickDraft, QuickProposal } from '../../shared/quick-add.js';
 import { CATEGORIES, type EventSource } from '../../shared/types.js';
 import { config } from '../config.js';
-import { audit, db } from '../db.js';
 import { BadRequest, createEvent, listOccurrences } from '../events.js';
+import { audit, run, transaction } from '../store.js';
 import { inferCategory } from '../nlp.js';
 
 export const SIMPLE_NOTICE = 'Entendi do jeito simples, confira os campos.';
@@ -18,10 +18,16 @@ export function quickModel() {
   return new Ollama({ ...pilotConfig(), timeoutMs: 8000 });
 }
 
+// O modelo roda no Mac. Na nuvem a barra usa só as regras, sem esperar o limite de 8 s.
+const extractWithModel = async (blocks: ReturnType<typeof quickModelInput>) => {
+  if (config.cloud) throw new Error('modelo indisponivel na nuvem');
+  return quickModel().extractQuickAdd(blocks);
+};
+
 export async function interpretQuickAdd(
   input: string,
   reference: string,
-  extract = (blocks: ReturnType<typeof quickModelInput>) => quickModel().extractQuickAdd(blocks),
+  extract = extractWithModel,
 ): Promise<QuickProposal> {
   const parsed = quickBlocks(input, reference);
   if ('question' in parsed) return { drafts: [], question: parsed.question };
@@ -77,14 +83,14 @@ function eventOf(draft: QuickDraft, allowSuggestions = false) {
   return { ...details, ...event.data };
 }
 
-export function quickConflict(drafts: QuickDraft[]): string | undefined {
+export async function quickConflict(drafts: QuickDraft[]): Promise<string | undefined> {
   const batch: { start: string; end: string; title: string }[] = [];
   for (const draft of drafts) {
     if (!draft.date || !draft.time || !draft.endTime) continue;
     const event = eventOf(draft);
     const rule = parseRrule(event.rrule);
     const until = rule ? addDays(draft.date, 90) : draft.date;
-    const existing = listOccurrences(draft.date, until);
+    const existing = await listOccurrences(draft.date, until);
     for (const day of occurrenceDates(draft.date, rule, draft.date, until)) {
       const start = day + event.start.slice(10);
       const end = day + event.end.slice(10);
@@ -98,32 +104,28 @@ export function quickConflict(drafts: QuickDraft[]): string | undefined {
 
 export async function proposeQuickAdd(input: string): Promise<QuickProposal> {
   const proposal = await interpretQuickAdd(input, config.agentDemoNow || now(config.tz));
-  return { ...proposal, conflict: quickConflict(proposal.drafts) };
+  return { ...proposal, conflict: await quickConflict(proposal.drafts) };
 }
 
 // A gravação e o consumo da confirmação são uma única transação.
-export function saveQuickAdd(drafts: QuickDraft[], source: EventSource, options: {
+export async function saveQuickAdd(drafts: QuickDraft[], source: EventSource, options: {
   allowSuggestions?: boolean;
   replaceSuggestion?: string;
-  consume?: () => void;
+  consume?: () => Promise<void>;
 } = {}) {
   const events = drafts.map((draft) => eventOf(draft, options.allowSuggestions));
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const conflict = quickConflict(drafts);
+  return transaction(async () => {
+    const conflict = await quickConflict(drafts);
     if (conflict) throw new BadRequest(conflict);
-    const created = events.map((event) => createEvent({ ...event, source }, source));
+    const created = [];
+    for (const event of events) created.push(await createEvent({ ...event, source }, source));
     if (options.replaceSuggestion) {
-      const result = db.prepare("DELETE FROM events WHERE id = ? AND is_suggestion = 1 AND source IN ('app', 'whatsapp')")
-        .run(options.replaceSuggestion);
-      if (!result.changes) throw new BadRequest('Essa sugestão já foi usada ou removida.');
-      audit(source, 'suggestion:scheduled', { suggestionId: options.replaceSuggestion, eventId: created[0]?.seriesId });
+      const changes = await run("DELETE FROM events WHERE id = ? AND is_suggestion = 1 AND source IN ('app', 'whatsapp')",
+        options.replaceSuggestion);
+      if (!changes) throw new BadRequest('Essa sugestão já foi usada ou removida.');
+      await audit(source, 'suggestion:scheduled', { suggestionId: options.replaceSuggestion, eventId: created[0]?.seriesId });
     }
-    options.consume?.();
-    db.exec('COMMIT');
+    await options.consume?.();
     return created;
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+  });
 }
