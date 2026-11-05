@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -56,6 +57,20 @@ try {
     assert.equal((await request('/api/meta', 'GET', undefined, { [header]: '203.0.113.9' })).status, 401);
     assert.equal((await request('/api/meta', 'GET', undefined, { [header]: '203.0.113.9', 'x-agenda-token': token })).status, 200);
   }
+  // Página de outro site aberta no navegador também conecta de loopback: a isenção local não vale pra ela.
+  const foreign = { origin: 'https://site-qualquer.example' };
+  assert.equal((await request('/api/meta', 'GET', undefined, foreign)).status, 401, 'outra origem exige token');
+  assert.equal((await request('/api/events', 'POST', { title: 'Invasor', start: '2030-05-14T15:00' }, foreign)).status, 401, 'outra origem não escreve');
+  assert.equal((await request('/api/meta', 'GET', undefined, { origin: 'null' })).status, 401, 'origem nula exige token');
+  assert.equal((await request('/api/meta', 'GET', undefined, { origin: base })).status, 200, 'a própria página continua livre');
+  assert.equal((await request('/api/meta', 'GET', undefined, { ...foreign, 'x-agenda-token': token })).status, 200, 'token continua valendo');
+  const crossHeaders = (await fetch(base + '/api/meta', { headers: foreign })).headers;
+  assert.equal(crossHeaders.get('access-control-allow-origin'), null, 'sem CORS: nenhum site lê a resposta');
+  const withHost = (host) => new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '/api/meta', headers: { host } }, (response) => { response.resume(); resolve(response.statusCode); }).on('error', reject);
+  });
+  assert.equal(await withHost('site-qualquer.example'), 401, 'DNS rebinding: Host de fora exige token');
+  assert.equal(await withHost(`localhost:${port}`), 200, 'Host local continua livre');
   assert.equal((await request('/api/whatsapp/webhook', 'POST', {})).status, 403);
   const created = await request('/api/events', 'POST', { title: 'Evento fictício', start: '2030-05-14T15:00', end: '2030-05-14T16:00' });
   assert.equal(created.status, 201);

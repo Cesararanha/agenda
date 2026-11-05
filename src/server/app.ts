@@ -48,24 +48,36 @@ const PROXY_HEADERS = [
   'true-client-ip',
 ];
 
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 /**
  * IP de loopback NAO prova que a requisicao nasceu neste Mac: o cloudflared roda
  * aqui e conecta de 127.0.0.1, entao confiar so no IP abria a agenda inteira pra
  * internet, sem token, assim que o tunel subia. Qualquer cabecalho de
  * encaminhamento derruba a isencao e o token volta a ser obrigatorio.
+ *
+ * Pagina de outro site aberta no navegador tambem conecta de loopback. Por isso a
+ * isencao exige Host local (contra DNS rebinding) e, quando ha Origin, a propria agenda.
  */
 function isFromThisMac(request: FastifyRequest): boolean {
   const ip = request.ip;
   if (ip !== '127.0.0.1' && ip !== '::1' && ip !== '::ffff:127.0.0.1') return false;
-  return !PROXY_HEADERS.some((header) => request.headers[header] !== undefined);
+  if (PROXY_HEADERS.some((header) => request.headers[header] !== undefined)) return false;
+  const host = request.headers.host ?? '';
+  if (!isLocalHost(host)) return false;
+  const origin = request.headers.origin;
+  return origin === undefined || origin === `http://${host}`;
+}
+
+function isLocalHost(host: string): boolean {
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(`http://${host}`).hostname);
+  } catch {
+    return false;
+  }
 }
 
 app.addHook('onRequest', async (request, reply) => {
-  reply.header('access-control-allow-origin', '*');
-  reply.header('access-control-allow-headers', 'content-type, x-agenda-token, x-agenda-actor, authorization');
-  reply.header('access-control-allow-methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-  if (request.method === 'OPTIONS') return reply.code(204).send();
-
   const url = request.url.split('?')[0] ?? '';
   if (!url.startsWith('/api/')) return; // PWA e arquivos estaticos
   if (PUBLIC_PATHS.has(url)) return;

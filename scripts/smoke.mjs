@@ -63,6 +63,10 @@ if (publico) {
   await checa('loopback com cf-connecting-ip exige token', 401, '/api/meta', {
     headers: { 'cf-connecting-ip': '203.0.113.9' },
   });
+  // pagina de outro site aberta no navegador deste Mac
+  await checa('loopback com origem de outro site exige token', 401, '/api/meta', {
+    headers: { origin: 'https://site-qualquer.example' },
+  });
 }
 
 console.log(`\n${falhas ? `${falhas} falha(s).` : 'tudo certo.'}\n`);
