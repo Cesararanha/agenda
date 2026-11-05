@@ -17,14 +17,15 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
+// Mesma regra do DESIGN.md: três cores, preto e cinza. A tela usa as classes cat-*.
 export const CATEGORY_COLORS: Record<Category, string> = {
-  faculdade: '#5b8def',
-  trabalho: '#f2994a',
-  projeto: '#27ae60',
-  estudo: '#9b51e0',
-  pessoal: '#eb5757',
-  saude: '#2d9cdb',
-  outro: '#828282',
+  faculdade: '#0e0e0e',
+  trabalho: '#0e0e0e',
+  projeto: '#e5532d',
+  estudo: '#f6c700',
+  pessoal: '#d9d9d6',
+  saude: '#d9d9d6',
+  outro: '#d9d9d6',
 };
 
 export type EventSource = 'app' | 'vault' | 'whatsapp' | 'ia';

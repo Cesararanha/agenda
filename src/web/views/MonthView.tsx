@@ -26,7 +26,7 @@ export function MonthView({ anchor, today, events, onPickDay, onOpen }: Props) {
   return (
     <div className="month">
       <div className="month-head">
-        {['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'].map((day) => (
+        {['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((day) => (
           <div key={day}>{day}</div>
         ))}
       </div>
@@ -58,8 +58,8 @@ export function MonthView({ anchor, today, events, onPickDay, onOpen }: Props) {
                 {dayEvents.slice(0, MAX_PER_CELL).map((event) => (
                   <button
                     key={event.occurrenceId}
-                    className="chip"
-                    style={{ background: event.color }}
+                    className={`chip cat-${event.category}`}
+                    title={event.title}
                     onClick={(click) => {
                       click.stopPropagation();
                       onOpen(event);

@@ -6,10 +6,10 @@ import {
   dateOf,
   minutesOfTime,
   timeOf,
-  WEEKDAY_SHORT,
   weekday,
 } from '../../shared/dates.js';
 import type { Occurrence } from '../../shared/types.js';
+import { DIA_CURTO } from '../rotulos.js';
 
 const HOUR_HEIGHT = 50;
 const SNAP_MINUTES = 15;
@@ -71,6 +71,8 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
   const days = Array.from({ length: 7 }, (_, index) => addDays(from, index));
   const gridRef = useRef<HTMLDivElement>(null);
   const originRef = useRef<{ x: number; y: number } | null>(null);
+  // no toque, arrastar é rolar a tela: compromisso só abre
+  const touchRef = useRef(false);
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const [nowTop, setNowTop] = useState<number | null>(null);
 
@@ -116,7 +118,7 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
     api
       .update(occurrence.seriesId, { start: movedStart, end: movedEnd }, scope, occurrence.occurrenceDate)
       .then(() => onMoved())
-      .catch((error: Error) => onError(`Nao consegui mover: ${error.message}`));
+      .catch((error: Error) => onError(`Não consegui mover: ${error.message}`));
   }
 
   return (
@@ -125,13 +127,13 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
         <div />
         {days.map((date) => (
           <div key={date} className={`day${date === today ? ' is-today' : ''}`}>
-            {WEEKDAY_SHORT[weekday(date)]}
+            {DIA_CURTO[weekday(date)]}
             <strong>{Number(date.slice(8, 10))}</strong>
           </div>
         ))}
       </div>
 
-      <div className="allday-row">
+      {allDay.length > 0 && <div className="allday-row">
         <div className="label">dia inteiro</div>
         {days.map((date) => (
           <div key={date} className="cell">
@@ -140,8 +142,7 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
               .map((event) => (
                 <button
                   key={event.occurrenceId}
-                  className={`chip${event.source === 'vault' ? ' from-vault' : ''}`}
-                  style={{ background: event.color }}
+                  className={`chip cat-${event.category}${event.source === 'vault' ? ' from-vault' : ''}`}
                   onClick={() => onOpen(event)}
                   title={event.source === 'vault' ? `${event.title} (do vault)` : event.title}
                 >
@@ -150,7 +151,7 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
               ))}
           </div>
         ))}
-      </div>
+      </div>}
 
       <div className="grid">
         <div className="hours">
@@ -180,17 +181,21 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
                 return (
                   <button
                     key={occurrence.occurrenceId}
-                    className={`event${isDragging ? ' dragging' : ''}${occurrence.source === 'vault' ? ' from-vault' : ''}`}
+                    className={`event cat-${occurrence.category}${isDragging ? ' dragging' : ''}${occurrence.source === 'vault' ? ' from-vault' : ''}`}
                     style={{
                       top,
                       height,
                       left: `calc(${lane * width}% + 2px)`,
                       width: `calc(${width}% - 4px)`,
-                      background: occurrence.color,
                       transform: isDragging ? `translate(${drag.dx}px, ${drag.dy}px)` : undefined,
                     }}
+                    onClick={(click) => {
+                      // teclado (detail 0) e toque; com mouse quem abre é o onPointerUp
+                      if (click.detail === 0 || touchRef.current) onOpen(occurrence);
+                    }}
                     onPointerDown={(pointer) => {
-                      if (occurrence.source === 'vault') return;
+                      touchRef.current = pointer.pointerType === 'touch';
+                      if (touchRef.current || occurrence.source === 'vault') return;
                       originRef.current = { x: pointer.clientX, y: pointer.clientY };
                       pointer.currentTarget.setPointerCapture(pointer.pointerId);
                       setDrag({ id: occurrence.occurrenceId, dx: 0, dy: 0 });
@@ -208,7 +213,10 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
                       const origin = originRef.current;
                       originRef.current = null;
                       setDrag(null);
-                      if (!origin) return;
+                      if (!origin) {
+                        if (occurrence.source === 'vault' && !touchRef.current) onOpen(occurrence);
+                        return;
+                      }
                       const dx = pointer.clientX - origin.x;
                       const dy = pointer.clientY - origin.y;
                       if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return onOpen(occurrence);

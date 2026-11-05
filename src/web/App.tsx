@@ -5,6 +5,7 @@ import { DayView } from './views/DayView.js';
 import { MonthView } from './views/MonthView.js';
 import { EventDialog, type DialogState } from './components/EventDialog.js';
 import { AgentDemo } from './components/AgentDemo.js';
+import { Rail } from './components/Rail.js';
 import {
   addDays,
   endOfMonth,
@@ -39,8 +40,8 @@ function addMonths(date: string, delta: number): string {
 }
 
 function rangeFor(view: View, anchor: string): { from: string; to: string } {
-  if (view === 'dia') return { from: anchor, to: anchor };
-  if (view === 'semana') return { from: startOfWeek(anchor), to: endOfWeek(anchor) };
+  // o dia também carrega a semana: a faixa do topo mostra quais dias têm compromisso
+  if (view === 'dia' || view === 'semana') return { from: startOfWeek(anchor), to: endOfWeek(anchor) };
   const from = startOfWeek(startOfMonth(anchor));
   return { from, to: addDays(from, 41) };
 }
@@ -67,14 +68,18 @@ export function App() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [view, setView] = useState<View>(() => {
     try {
-      const saved = localStorage.getItem('agenda:view');
-      return saved === 'dia' || saved === 'mes' ? saved : 'semana';
+      // chave nova: a antiga gravava "semana" em todo aparelho, sem ninguém ter escolhido
+      const saved = localStorage.getItem('agenda:vista');
+      if (saved === 'dia' || saved === 'semana' || saved === 'mes') return saved;
     } catch {
-      return 'semana';
+      // modo privado: segue com o padrao da largura
     }
+    return window.innerWidth <= 760 ? 'dia' : 'semana';
   });
   const [anchor, setAnchor] = useState<string>(() => todayIn());
   const [events, setEvents] = useState<Occurrence[]>([]);
+  const [upcoming, setUpcoming] = useState<Occurrence[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState<Occurrence[]>([]);
   // no celular a lista aberta empurra o calendario pra fora da tela, entao ela
   // nasce recolhida em tela estreita. A escolha do Cesar vence e fica guardada.
@@ -99,13 +104,14 @@ export function App() {
   const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);
   const today = meta?.today ?? todayIn();
 
-  useEffect(() => {
+  function chooseView(option: View) {
+    setView(option);
     try {
-      localStorage.setItem('agenda:view', view);
+      localStorage.setItem('agenda:vista', option);
     } catch {
       // modo privado: nao guarda a preferencia, tudo bem
     }
-  }, [view]);
+  }
 
   useEffect(() => {
     try {
@@ -119,14 +125,17 @@ export function App() {
     try {
       // as sugestoes nao seguem a janela do calendario: sao poucas e valem ser
       // vistas de uma vez, senao some da tela o que nao tem hora marcada
-      const [data, pendentes] = await Promise.all([
+      const [data, pendentes, proximos] = await Promise.all([
         api.events(range.from, range.to),
         api.suggestions(todayIn(), addDays(todayIn(), 180)),
+        api.events(todayIn(), addDays(todayIn(), 14)),
       ]);
       setEvents(data.events);
       setSuggestions(pendentes.suggestions);
+      setUpcoming(proximos.events);
+      setLoaded(true);
     } catch (error) {
-      setMessage({ text: `Nao consegui carregar: ${(error as Error).message}`, kind: 'error' });
+      setMessage({ text: `Não consegui carregar: ${(error as Error).message}`, kind: 'error' });
     }
   }, [range.from, range.to]);
 
@@ -157,6 +166,20 @@ export function App() {
     if (view === 'semana') return formatRangeLabel(range.from, range.to);
     return `${MONTH_LONG[Number(anchor.slice(5, 7)) - 1]} de ${anchor.slice(0, 4)}`;
   }, [view, anchor, range.from, range.to]);
+
+  function giveTime(s: Occurrence) {
+    setDialog({
+      mode: 'create',
+      date: s.occurrenceDate,
+      time: s.source === 'app' || s.source === 'whatsapp' ? '' : '09:00',
+      title: tituloCurto(s.title),
+      ...(s.source === 'app' || s.source === 'whatsapp' ? {
+        suggestionId: s.seriesId,
+        draft: { title: s.title, date: s.occurrenceDate, time: '', endTime: '',
+          category: s.category, notes: s.notes, location: s.location, rrule: s.rrule },
+      } : {}),
+    });
+  }
 
   function shift(delta: number) {
     if (view === 'dia') return setAnchor(addDays(anchor, delta));
@@ -215,108 +238,101 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <h1>{meta?.agentSandbox ? 'Agenda fictícia' : 'Agenda'}</h1>
+        <h1>{meta?.agentSandbox ? 'agenda fictícia' : 'agenda'}</h1>
         {meta?.agentSandbox && <button onClick={() => setDemoCalendar(false)}>Voltar ao painel do agente</button>}
-        <button onClick={() => setAnchor(today)}>Hoje</button>
-        <button className="ghost" onClick={() => shift(-1)} aria-label="anterior">
-          &#8249;
-        </button>
-        <button className="ghost" onClick={() => shift(1)} aria-label="proximo">
-          &#8250;
-        </button>
-        <span className="range-label">{label}</span>
-        <span className="spacer" />
-        <div className="views">
+        <div className="views" role="group" aria-label="Visão do calendário">
           {(['dia', 'semana', 'mes'] as View[]).map((option) => (
-            <button
-              key={option}
-              aria-pressed={view === option}
-              onClick={() => setView(option)}
-            >
-              {option === 'mes' ? 'Mes' : option[0]?.toUpperCase() + option.slice(1)}
+            <button key={option} aria-pressed={view === option} onClick={() => chooseView(option)}>
+              {option === 'mes' ? 'Mês' : option === 'dia' ? 'Dia' : 'Semana'}
             </button>
           ))}
         </div>
-        {!meta?.agentSandbox && Boolean(meta?.vaults.length) && <button onClick={syncVaults} disabled={busy} title="Rele os prazos do vault">
+        {/* no dia, quem diz a data é o título da própria tela */}
+        {view !== 'dia' && <span className="range-label">{label.replace('marco', 'março')}</span>}
+        <span className="spacer" />
+        <button onClick={() => setAnchor(today)}>Hoje</button>
+        <button className="icon" onClick={() => shift(-1)} aria-label="Anterior">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3 5 8l5 5" /></svg>
+        </button>
+        <button className="icon" onClick={() => shift(1)} aria-label="Próximo">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m6 3 5 5-5 5" /></svg>
+        </button>
+        {!meta?.agentSandbox && Boolean(meta?.vaults.length) && <button onClick={syncVaults} disabled={busy} title="Relê os prazos do vault">
           Vault
         </button>}
-        <button
-          className="primary"
-          onClick={() =>
-            setDialog({ mode: 'create', date: view === 'dia' ? anchor : today, time: '09:00' })
-          }
-        >
-          + Novo
-        </button>
       </header>
 
-      {meta?.agentSandbox && <div className="banner" role="status">Calendário de demonstração, somente com dados fictícios.</div>}
-
-      <form className="quickbar" onSubmit={runQuickAdd}>
-        <input
-          value={quick}
-          onChange={(event) => setQuick(event.target.value)}
-          placeholder="amanha 14h dentista · toda terca 19h aula de IA · 27/10 15h-17h estudar"
-          aria-label="marcar escrevendo"
+      <div className="body">
+        <Rail
+          today={today}
+          upcoming={upcoming}
+          suggestions={suggestions}
+          onOpen={(occurrence) => setDialog({ mode: 'edit', occurrence })}
+          onGiveTime={giveTime}
+          shortTitle={tituloCurto}
         />
-        <button className="primary" type="submit" disabled={busy || !quick.trim()}>
-          Marcar
-        </button>
-      </form>
 
-      {message && (
-        <div
-          className={message.kind === 'error' ? 'banner error' : 'banner'}
-          onClick={() => setMessage(null)}
-          role="status"
-        >
-          {message.text}
-        </div>
-      )}
+        <div className="work">
+          {meta?.agentSandbox && <div className="banner" role="status">Calendário de demonstração, somente com dados fictícios.</div>}
 
-      {suggestions.length > 0 && (
-        <section className="sugestoes">
-          <button
-            className="sugestoes-cabecalho"
-            onClick={() => setShowSuggestions((v) => !v)}
-            aria-expanded={showSuggestions}
-          >
-            <span className="sugestoes-contagem">{suggestions.length}</span>
-            sem horario definido
-            <span className="sugestoes-seta">{showSuggestions ? '\u2303' : '\u2304'}</span>
-          </button>
-          {showSuggestions && (
-            <ul className="sugestoes-lista">
-              {suggestions.map((s) => (
-                <li key={s.id} style={{ borderLeftColor: s.color }}>
-                  <span className="sugestoes-data">{formatDateBR(s.occurrenceDate).slice(0, 5)}</span>
-                  <span className="sugestoes-titulo" title={s.title}>
-                    {tituloCurto(s.title)}
-                  </span>
-                  <button
-                    className="ghost"
-                    onClick={() =>
-                      setDialog({
-                        mode: 'create',
-                        date: s.occurrenceDate,
-                        time: s.source === 'app' || s.source === 'whatsapp' ? '' : '09:00',
-                        title: tituloCurto(s.title),
-                        ...(s.source === 'app' || s.source === 'whatsapp' ? {
-                          suggestionId: s.seriesId,
-                          draft: { title: s.title, date: s.occurrenceDate, time: '', endTime: '',
-                            category: s.category, notes: s.notes, location: s.location, rrule: s.rrule },
-                        } : {}),
-                      })
-                    }
-                  >
-                    Dar horario
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <form className="quickbar" onSubmit={runQuickAdd}>
+            <button
+              type="button"
+              className="icon new"
+              aria-label="Novo compromisso"
+              title="Novo compromisso"
+              onClick={() => setDialog({ mode: 'create', date: view === 'dia' ? anchor : today, time: '09:00' })}
+            >
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2.5v11M2.5 8h11" /></svg>
+            </button>
+            <input
+              value={quick}
+              onChange={(event) => setQuick(event.target.value)}
+              placeholder={window.innerWidth <= 760 ? 'amanhã 14h dentista' : 'amanhã 14h dentista · toda terça 19h aula de IA'}
+              aria-label="Marcar escrevendo"
+            />
+            <button className="primary" type="submit" disabled={busy || !quick.trim()}>
+              {busy ? 'Marcando...' : 'Marcar'}
+            </button>
+          </form>
+
+          {message && (
+            <div
+              className={message.kind === 'error' ? 'banner error' : 'banner'}
+              onClick={() => setMessage(null)}
+              role="status"
+            >
+              {message.text}
+            </div>
           )}
-        </section>
-      )}
+
+          {suggestions.length > 0 && (
+            <section className="sugestoes">
+              <button
+                className="sugestoes-cabecalho"
+                onClick={() => setShowSuggestions((v) => !v)}
+                aria-expanded={showSuggestions}
+              >
+                <span className="sugestoes-contagem">{suggestions.length}</span>
+                sem horário definido
+                <svg className="sugestoes-seta" aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d={showSuggestions ? 'm3 10 5-5 5 5' : 'm3 6 5 5 5-5'} /></svg>
+              </button>
+              {showSuggestions && (
+                <ul className="sugestoes-lista">
+                  {suggestions.map((s) => (
+                    <li key={s.id} className={`cat-${s.category}`}>
+                      <i className="sw" aria-hidden="true" />
+                      <span className="sugestoes-data">{formatDateBR(s.occurrenceDate).slice(0, 5)}</span>
+                      <span className="sugestoes-titulo" title={s.title}>
+                        {tituloCurto(s.title)}
+                      </span>
+                      <button onClick={() => giveTime(s)}>Dar horário</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
       <main className="content">
         {view === 'semana' && (
@@ -333,8 +349,12 @@ export function App() {
         {view === 'dia' && (
           <DayView
             date={anchor}
+            today={today}
             events={events}
+            loaded={loaded}
+            onSelect={setAnchor}
             onOpen={(occurrence) => setDialog({ mode: 'edit', occurrence })}
+            onNew={(date) => setDialog({ mode: 'create', date, time: '09:00' })}
           />
         )}
         {view === 'mes' && (
@@ -350,6 +370,8 @@ export function App() {
           />
         )}
       </main>
+        </div>
+      </div>
 
       {quickQueue[0] && (
         <EventDialog

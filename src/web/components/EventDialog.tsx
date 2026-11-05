@@ -4,6 +4,7 @@ import type { QuickDraft } from '../../shared/quick-add.js';
 import { dateOf, timeOf } from '../../shared/dates.js';
 import { formatRrule, parseRrule } from '../../shared/recurrence.js';
 import { CATEGORIES, type Category, type Occurrence } from '../../shared/types.js';
+import { NOME_CATEGORIA } from '../rotulos.js';
 
 export type DialogState =
   | { mode: 'create'; date: string; time: string; title?: string; draft?: QuickDraft; notice?: string; remaining?: number; suggestionId?: string }
@@ -92,7 +93,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
   const occurrenceOnly = askScope && scope === 'this';
 
   async function save(saveWithoutTime = false) {
-    if (!title.trim()) return reportError('Falta o titulo.');
+    if (!title.trim()) return reportError('Falta o título.');
     if (!date) return reportError('Falta a data.');
     if (!saveWithoutTime && !allDay && (!startTime || !endTime || endTime <= startTime)) return reportError('Informe início e fim válidos. O fim precisa ser depois do início.');
     if (allDay && endDate && endDate < date) return reportError('A data final precisa ser igual ou posterior à inicial.');
@@ -161,20 +162,20 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         {fromVault && (
           <div className="scope-ask">
             Esse marco vem do vault ({editing?.notes ?? 'arquivo do vault'}). Mude no arquivo e
-            clique em <strong>Vault</strong> pra ressincronizar: o que voce editar aqui volta atras
-            na proxima sincronizacao.
+            clique em <strong>Vault</strong> pra ressincronizar: o que você editar aqui volta atrás
+            na próxima sincronização.
           </div>
         )}
 
         {askScope && !fromVault && (
           <div className="scope-ask">
-            Esse compromisso repete. O que voce quer mudar?
+            Esse compromisso repete. O que você quer mudar?
             <div className="options">
               {(
                 [
-                  ['this', 'So esse dia'],
+                  ['this', 'Só esse dia'],
                   ['future', 'Daqui pra frente'],
-                  ['all', 'A serie toda'],
+                  ['all', 'A série toda'],
                 ] as Array<[Scope, string]>
               ).map(([value, label]) => (
                 <button key={value} aria-pressed={scope === value} onClick={() => setScope(value)}>
@@ -186,7 +187,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         )}
 
         <div className="field">
-          <label htmlFor="titulo">Titulo</label>
+          <label htmlFor="titulo">Título</label>
           <input
             id="titulo"
             value={title}
@@ -207,7 +208,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
             >
               {CATEGORIES.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {NOME_CATEGORIA[option]}
                 </option>
               ))}
             </select>
@@ -237,7 +238,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
 
         <div className="field row">
           <div>
-            <label htmlFor="data">{allDay ? 'Comeca em' : 'Data'}</label>
+            <label htmlFor="data">{allDay ? 'Começa em' : 'Data'}</label>
             <input
               id="data"
               type="date"
@@ -258,7 +259,7 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
           ) : (
             <>
               <div>
-                <label htmlFor="inicio">Inicio</label>
+                <label htmlFor="inicio">Início</label>
                 <input
                   id="inicio"
                   type="time"
@@ -290,17 +291,17 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
               value={repeat}
               onChange={(event) => setRepeat(event.target.value as Repeat)}
             >
-              <option value="none">nao repete</option>
+              <option value="none">não repete</option>
               <option value="daily">todo dia</option>
               <option value="weekly">toda semana, nesse dia</option>
               <option value="weekdays">de segunda a sexta</option>
-              <option value="monthly">todo mes, nesse dia</option>
+              <option value="monthly">todo mês, nesse dia</option>
               <option value="custom">dias escolhidos</option>
             </select>
           </div>
           {repeat !== 'none' && (
             <div>
-              <label htmlFor="ate">Repete ate</label>
+              <label htmlFor="ate">Repete até</label>
               <input
                 id="ate"
                 type="date"

@@ -1,13 +1,13 @@
 {
   "name": "Agenda do Cesar",
   "short_name": "Agenda",
-  "description": "Agenda local: semana, dia e mes, com os prazos do vault",
+  "description": "Agenda local: semana, dia e mês, com os prazos do vault",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#111318",
-  "theme_color": "#111318",
+  "background_color": "#0e0e0e",
+  "theme_color": "#0e0e0e",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
