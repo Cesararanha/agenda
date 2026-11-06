@@ -6,6 +6,8 @@ import { MonthView } from './views/MonthView.js';
 import { EventDialog, type DialogState } from './components/EventDialog.js';
 import { AgentDemo } from './components/AgentDemo.js';
 import { Rail } from './components/Rail.js';
+import { CategoryColors } from './components/CategoryColors.js';
+import { aplicarCores, aplicarCoresGuardadas } from './cores.js';
 import {
   addDays,
   endOfMonth,
@@ -21,6 +23,8 @@ import type { QuickDraft } from '../shared/quick-add.js';
 import type { Occurrence } from '../shared/types.js';
 
 type View = 'dia' | 'semana' | 'mes';
+
+aplicarCoresGuardadas();
 
 function addMonths(date: string, delta: number): string {
   let year = Number(date.slice(0, 4));
@@ -100,8 +104,13 @@ export function App() {
   const [quick, setQuick] = useState('');
   const [busy, setBusy] = useState(false);
   const [demoCalendar, setDemoCalendar] = useState(false);
+  const [colorsOpen, setColorsOpen] = useState(false);
 
   const range = useMemo(() => rangeFor(view, anchor), [view, anchor]);
+
+  useEffect(() => {
+    if (meta) aplicarCores(meta.categories);
+  }, [meta]);
   const today = meta?.today ?? todayIn();
 
   function chooseView(option: View) {
@@ -250,6 +259,11 @@ export function App() {
         {/* no dia, quem diz a data é o título da própria tela */}
         {view !== 'dia' && <span className="range-label">{label.replace('marco', 'março')}</span>}
         <span className="spacer" />
+        {meta && !meta.agentSandbox && (
+          <button className="icon" onClick={() => setColorsOpen(true)} aria-label="Cores das categorias" title="Cores das categorias">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="5" height="5" rx="1" /><rect x="9" y="2" width="5" height="5" rx="1" /><rect x="2" y="9" width="5" height="5" rx="1" /><rect x="9" y="9" width="5" height="5" rx="1" /></svg>
+          </button>
+        )}
         <button onClick={() => setAnchor(today)}>Hoje</button>
         <button className="icon" onClick={() => shift(-1)} aria-label="Anterior">
           <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 3 5 8l5 5" /></svg>
@@ -373,6 +387,14 @@ export function App() {
         </div>
       </div>
 
+      {colorsOpen && meta && (
+        <CategoryColors
+          categories={meta.categories}
+          onChange={(categories) => setMeta({ ...meta, categories })}
+          onClose={() => setColorsOpen(false)}
+          onError={(text) => setMessage({ kind: 'error', text })}
+        />
+      )}
       {quickQueue[0] && (
         <EventDialog
           key={quickQueue.length}

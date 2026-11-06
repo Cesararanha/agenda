@@ -15,17 +15,20 @@
   --rail: #0e0e0e;
   --tile: #1c1c1c;
   --agora: #2f6fdb;
-  --ev-preto: #0e0e0e;
-  --ev-preto-ink: #ffffff;
-  --ev-cinza: #d9d9d6;
-  --ev-cinza-ink: #0e0e0e;
-  --ev-preto-sw: #0e0e0e;
-  --ev-cinza-sw: #d9d9d6;
-  --ev-amarelo: #f6c700;
-  --ev-amarelo-ink: #0e0e0e;
-  --ev-vermelho: #e5532d;
-  --ev-vermelho-ink: #0e0e0e;
-  --ev-hover: brightness(0.92);
+  --cat-trabalho: #7a4fd0;
+  --cat-trabalho-ink: #ffffff;
+  --cat-faculdade: #0fa3b1;
+  --cat-faculdade-ink: #0e0e0e;
+  --cat-estudo: #f6c700;
+  --cat-estudo-ink: #0e0e0e;
+  --cat-projeto: #e5532d;
+  --cat-projeto-ink: #0e0e0e;
+  --cat-saude: #e85c9c;
+  --cat-saude-ink: #0e0e0e;
+  --cat-pessoal: #2f6fdb;
+  --cat-pessoal-ink: #ffffff;
+  --cat-outro: #d9d9d6;
+  --cat-outro-ink: #0e0e0e;
   --tile-ink: #ffffff;
   --tile-dim: #b9b9b9;
   --tile-hover: #262626;
@@ -43,14 +46,14 @@
   color-scheme: light;
 }
 
-/* O que cada cor quer dizer mora aqui: fora destas classes, nenhum compromisso tem cor. */
-.cat-trabalho,
-.cat-faculdade { --ev: var(--ev-preto); --ev-ink: var(--ev-preto-ink); --sw: var(--ev-preto-sw); }
-.cat-estudo { --ev: var(--ev-amarelo); --ev-ink: var(--ev-amarelo-ink); }
-.cat-projeto { --ev: var(--ev-vermelho); --ev-ink: var(--ev-vermelho-ink); }
-.cat-saude,
-.cat-pessoal,
-.cat-outro { --ev: var(--ev-cinza); --ev-ink: var(--ev-cinza-ink); --sw: var(--ev-cinza-sw); }
+/* O que cada cor quer dizer: o dono escolhe, e o app troca as variáveis --cat-*. */
+.cat-trabalho { --ev: var(--cat-trabalho); --ev-ink: var(--cat-trabalho-ink); }
+.cat-faculdade { --ev: var(--cat-faculdade); --ev-ink: var(--cat-faculdade-ink); }
+.cat-estudo { --ev: var(--cat-estudo); --ev-ink: var(--cat-estudo-ink); }
+.cat-projeto { --ev: var(--cat-projeto); --ev-ink: var(--cat-projeto-ink); }
+.cat-saude { --ev: var(--cat-saude); --ev-ink: var(--cat-saude-ink); }
+.cat-pessoal { --ev: var(--cat-pessoal); --ev-ink: var(--cat-pessoal-ink); }
+.cat-outro { --ev: var(--cat-outro); --ev-ink: var(--cat-outro-ink); }
 
 * { box-sizing: border-box; }
 
@@ -287,7 +290,7 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
 .sugestoes-titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sugestoes-lista button { flex: none; }
 
-.sw { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; background: var(--sw, var(--ev)); }
+.sw { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 2px; background: var(--ev); }
 
 /* Semana */
 .week-head, .allday-row, .grid {
@@ -369,7 +372,7 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
   text-overflow: ellipsis;
 }
 
-.chip:hover:not(:disabled) { background: var(--ev); filter: var(--ev-hover); }
+.chip:hover:not(:disabled) { background: var(--ev); filter: brightness(0.92); }
 
 .hours { display: flex; flex-direction: column; }
 
@@ -381,6 +384,11 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
   color: var(--text-dim);
   transform: translateY(-5px);
 }
+
+/* a primeira hora não pode sumir atrás do cabeçalho, e a última marca o fim da grade */
+.hours span:first-child { transform: none; }
+.hours span.last { height: 0; }
+.grid { margin-bottom: 16px; }
 
 .col { position: relative; min-width: 0; border-left: 1px solid var(--border); }
 .col .slot { height: var(--hour-height); border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -412,7 +420,7 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
   touch-action: pan-y;
 }
 
-.event:hover:not(:disabled) { background: var(--ev); filter: var(--ev-hover); }
+.event:hover:not(:disabled) { background: var(--ev); filter: brightness(0.92); }
 .event .time { display: block; font: 400 10px/1.3 var(--mono); }
 .event.dragging { opacity: 0.75; cursor: grabbing; z-index: 5; }
 .event.from-vault, .chip.from-vault { outline: 1px dashed var(--ev-ink); outline-offset: -3px; cursor: pointer; }
@@ -638,7 +646,9 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
   :root { --gutter: 34px; --week-head: 56px; }
 
   button { min-height: 44px; }
-  button.icon { width: 44px; }
+  /* quatro ícones e as visões na mesma linha, ainda confortáveis para o polegar */
+  button.icon { width: 40px; padding: 0; }
+  .topbar > button:not(.icon) { padding: 0 8px; }
   input, select, textarea { min-height: 44px; font-size: 16px; }
 
   .topbar {
@@ -649,7 +659,7 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
 
   .topbar h1 { display: none; }
   .range-label { order: 5; flex-basis: 100%; margin: 0; font-size: 12px; }
-  .views button { padding: 0 10px; }
+  .views button { padding: 0 8px; }
 
   .quickbar {
     order: 2;
@@ -692,6 +702,23 @@ button.tile:hover:not(:disabled) { background: var(--tile-hover); }
     border-radius: 16px 16px 0 0;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
   }
+}
+
+/* Cores */
+.colors-dialog { max-width: 560px; }
+.colors-list { display: grid; gap: 2px; margin: 12px 0 4px; }
+.colors-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.colors-row > span { flex: 1 0 84px; font-weight: 500; }
+.swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+button.swatch { display: grid; place-items: center; width: 28px; min-height: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; }
+button.swatch:hover:not(:disabled) { background: inherit; filter: brightness(0.92); }
+button.swatch:disabled { opacity: 1; cursor: progress; }
+button.swatch[aria-checked='true'] { outline: 2px solid var(--text); outline-offset: 2px; }
+
+@media (max-width: 760px) {
+  .swatches { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; width: 100%; }
+  button.swatch { width: 100%; height: auto; min-height: 0; aspect-ratio: 1; }
+  .colors-row { padding: 6px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

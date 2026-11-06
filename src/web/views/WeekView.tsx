@@ -9,11 +9,11 @@ import {
   weekday,
 } from '../../shared/dates.js';
 import type { Occurrence } from '../../shared/types.js';
+import { hourRange } from '../../shared/grade.js';
 import { DIA_CURTO } from '../rotulos.js';
 
 const HOUR_HEIGHT = 50;
 const SNAP_MINUTES = 15;
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 interface Props {
   from: string;
@@ -34,7 +34,13 @@ interface Placed {
 }
 
 /** Distribui eventos que se sobrepoem em faixas lado a lado. */
-function place(occurrences: Occurrence[]): Placed[] {
+function minutesOf(occurrence: Occurrence): { startMin: number; endMin: number } {
+  const startMin = minutesOfTime(timeOf(occurrence.start) ?? '00:00');
+  const endSameDay = dateOf(occurrence.end) === dateOf(occurrence.start);
+  return { startMin, endMin: endSameDay ? minutesOfTime(timeOf(occurrence.end) ?? '00:00') : 24 * 60 };
+}
+
+function place(occurrences: Occurrence[], startHour: number): Placed[] {
   const sorted = [...occurrences].sort((a, b) => (a.start < b.start ? -1 : 1));
   const placed: Placed[] = [];
   let cluster: Placed[] = [];
@@ -49,9 +55,7 @@ function place(occurrences: Occurrence[]): Placed[] {
   };
 
   for (const occurrence of sorted) {
-    const startMin = minutesOfTime(timeOf(occurrence.start) ?? '00:00');
-    const endSameDay = dateOf(occurrence.end) === dateOf(occurrence.start);
-    const endMin = endSameDay ? minutesOfTime(timeOf(occurrence.end) ?? '00:00') : 24 * 60;
+    const { startMin, endMin } = minutesOf(occurrence);
     const height = Math.max(18, ((endMin - startMin) / 60) * HOUR_HEIGHT);
 
     if (startMin >= clusterEnd && cluster.length) flush();
@@ -60,7 +64,7 @@ function place(occurrences: Occurrence[]): Placed[] {
     let lane = 0;
     while (taken.has(lane)) lane++;
 
-    cluster.push({ occurrence, top: (startMin / 60) * HOUR_HEIGHT, height, lane, lanes: 1 });
+    cluster.push({ occurrence, top: ((startMin - startHour * 60) / 60) * HOUR_HEIGHT, height, lane, lanes: 1 });
     clusterEnd = Math.max(clusterEnd, endMin);
   }
   if (cluster.length) flush();
@@ -74,29 +78,36 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
   // no toque, arrastar é rolar a tela: compromisso só abre
   const touchRef = useRef(false);
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
-  const [nowTop, setNowTop] = useState<number | null>(null);
+  const [nowMinutes, setNowMinutes] = useState<number | null>(null);
 
   // linha do agora, so quando a semana mostrada contem hoje
   useEffect(() => {
     const update = () => {
       const current = new Date();
       const date = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
-      if (date < from || date > addDays(from, 6)) return setNowTop(null);
-      setNowTop(((current.getHours() * 60 + current.getMinutes()) / 60) * HOUR_HEIGHT);
+      if (date < from || date > addDays(from, 6)) return setNowMinutes(null);
+      setNowMinutes(current.getHours() * 60 + current.getMinutes());
     };
     update();
     const timer = window.setInterval(update, 60_000);
     return () => window.clearInterval(timer);
   }, [from]);
 
-  // abre a semana na altura da manha, nao a meia-noite
+  // a grade já começa de manhã: vindo do mês, não herda a rolagem de lá
   useEffect(() => {
     const content = gridRef.current?.closest('.content');
-    if (content) content.scrollTop = 7 * HOUR_HEIGHT - 20;
+    if (content) content.scrollTop = 0;
   }, []);
 
   const allDay = events.filter((event) => event.allDay);
   const timed = events.filter((event) => !event.allDay);
+  const inWeek = timed.filter((event) => days.includes(dateOf(event.start)));
+  const { start: startHour, end: endHour } = hourRange(inWeek.map(minutesOf));
+  const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
+  const nowTop =
+    nowMinutes !== null && nowMinutes >= startHour * 60 && nowMinutes < endHour * 60
+      ? ((nowMinutes - startHour * 60) / 60) * HOUR_HEIGHT
+      : null;
 
   function commitMove(occurrence: Occurrence, dx: number, dy: number) {
     const column = (gridRef.current?.querySelector('.col')?.clientWidth ?? 1) || 1;
@@ -155,14 +166,15 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
 
       <div className="grid">
         <div className="hours">
-          {HOURS.map((hour) => (
+          {hours.map((hour) => (
             <span key={hour}>{hour === 0 ? '' : `${String(hour).padStart(2, '0')}:00`}</span>
           ))}
+          {endHour < 24 && <span className="last">{`${String(endHour).padStart(2, '0')}:00`}</span>}
         </div>
 
         {days.map((date) => (
           <div key={date} className={`col${date === today ? ' is-today' : ''}`}>
-            {HOURS.map((hour) => (
+            {hours.map((hour) => (
               <div
                 key={hour}
                 className="slot"
@@ -174,7 +186,7 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
               <div className="nowline" style={{ top: nowTop }} />
             )}
 
-            {place(timed.filter((event) => dateOf(event.start) === date)).map(
+            {place(timed.filter((event) => dateOf(event.start) === date), startHour).map(
               ({ occurrence, top, height, lane, lanes }) => {
                 const isDragging = drag?.id === occurrence.occurrenceId;
                 const width = 100 / lanes;

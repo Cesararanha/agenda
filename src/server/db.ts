@@ -64,6 +64,11 @@ db.exec(`
     confirmed INTEGER NOT NULL DEFAULT 0,
     UNIQUE (sender, message_id)
   );
+
+  CREATE TABLE IF NOT EXISTS category_colors (
+    category TEXT PRIMARY KEY,
+    color    TEXT NOT NULL
+  );
 `);
 
 // Banco criado antes da coluna de sugestao precisa ganhar ela sem perder dado.

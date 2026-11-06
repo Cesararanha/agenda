@@ -71,6 +71,9 @@ export type Scope = 'this' | 'future' | 'all';
 export const api = {
   meta: () => request<Meta>('GET', '/api/meta'),
 
+  setCategoryColor: (category: string, color: string) =>
+    request<{ categories: Meta['categories'] }>('PUT', `/api/categories/${category}/color`, { color }),
+
   events: (from: string, to: string) =>
     request<{ from: string; to: string; events: Occurrence[] }>(
       'GET',

@@ -195,6 +195,11 @@ try {
   const beforeTypeChange = (await request('/api/events?from=2030-09-01&to=2030-09-03')).body.events;
   assert.equal((await request(`/api/events/${scoped}?scope=all`, 'PATCH', { allDay: true })).status, 400, 'mudança de tipo não pode tornar exceções incompatíveis');
   assert.deepEqual((await request('/api/events?from=2030-09-01&to=2030-09-03')).body.events, beforeTypeChange);
+  // Cor da categoria: só da paleta, e volta na leitura seguinte.
+  assert.equal((await request('/api/categories/estudo/color', 'PUT', { color: '#123456' })).status, 400);
+  assert.equal((await request('/api/categories/inexistente/color', 'PUT', { color: '#7a4fd0' })).status, 404);
+  assert.equal((await request('/api/categories/estudo/color', 'PUT', { color: '#7a4fd0' })).status, 200);
+  assert.equal((await request('/api/meta')).body.categories.find((item) => item.id === 'estudo').color, '#7a4fd0');
   console.log('PASS agenda: PWA, autenticação/proxy, webhook, CRUD, recorrência e quick-add, com banco temporário e zero vaults.');
 } finally {
   child.kill('SIGTERM');

@@ -17,7 +17,6 @@ import {
 import { formatRrule, occurrenceDates, parseRrule, type Rrule } from '../shared/recurrence.js';
 import {
   CATEGORIES,
-  CATEGORY_COLORS,
   type Category,
   type DateStr,
   type EventInput,
@@ -89,7 +88,6 @@ function rowToOccurrence(
     end,
     allDay,
     category,
-    color: CATEGORY_COLORS[category],
     recurring: Boolean(row.rrule),
     rrule: row.rrule,
     source: row.source,

@@ -20,7 +20,9 @@ import {
   startOfWeek,
   today,
 } from '../../shared/dates.js';
-import { CATEGORIES, CATEGORY_COLORS, type Category, type EventSource } from '../../shared/types.js';
+import { isPaletteColor } from '../../shared/cores.js';
+import { CATEGORIES, type Category, type EventSource } from '../../shared/types.js';
+import { categoryColors, setCategoryColor } from '../category-colors.js';
 
 interface RangeQuery {
   from?: string;
@@ -45,12 +47,21 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/meta', async () => ({
     today: config.agentDemoNow ? config.agentDemoNow.slice(0, 10) : today(config.tz),
     tz: config.tz,
-    categories: CATEGORIES.map((c) => ({ id: c, color: CATEGORY_COLORS[c] })),
+    categories: await categoryColors(),
     vaults: config.vaults.map((v) => v.label),
     whatsapp: config.whatsapp.enabled,
     agentSandbox: config.agentSandbox,
     ...(config.agentSandbox ? { agentDemoId: config.agentDemoId } : {}),
   }));
+
+  app.put<{ Params: { id: string } }>('/api/categories/:id/color', async (request, reply) => {
+    const category = request.params.id as Category;
+    const color = (request.body as { color?: unknown } | null)?.color;
+    if (!CATEGORIES.includes(category)) return reply.code(404).send({ error: 'categoria nao encontrada' });
+    if (!isPaletteColor(color)) return reply.code(400).send({ error: 'cor fora da paleta' });
+    await setCategoryColor(category, color);
+    return { categories: await categoryColors() };
+  });
 
   app.get<{ Querystring: RangeQuery }>('/api/events', async (request) => {
     const q = request.query;

@@ -1,6 +1,6 @@
 ---
 name: Agenda
-description: Um calendário em preto e branco, com o agora em azul.
+description: Um calendário de cores chapadas sobre branco, com o agora em azul.
 colors:
   preto: "#0E0E0E"
   preto-ladrilho: "#1C1C1C"
@@ -68,7 +68,7 @@ Mesma família visual do painel pessoal do dono: branco, preto, linhas finas e n
 
 ## Colors
 
-Azul é o agora: a linha da hora, o ladrilho Agora e o rótulo do compromisso em andamento. Amarelo é Estudo e também o ladrilho Próximo. Vermelho-laranja é Projeto. Trabalho e Faculdade são pretos, e Saúde, Pessoal e Outro são cinza. A cor de cada compromisso vem da categoria, escrita por extenso na tela do dia e ao abrir o compromisso. No tema escuro, o preto vira quase branco e o cinza escurece; os tons vêm da tela Mapa do painel.
+Azul é o agora: a linha da hora, o ladrilho Agora e o rótulo do compromisso em andamento. O amarelo também marca o ladrilho Próximo. Cada categoria tem uma cor que o dono escolhe em uma paleta de 12, e o texto do bloco fica preto ou branco conforme o contraste. O padrão é Trabalho roxo, Faculdade turquesa, Estudo amarelo, Projeto vermelho-laranja, Saúde rosa, Pessoal azul e Outro cinza. A cor de cada compromisso vem da categoria, escrita por extenso na tela do dia e ao abrir o compromisso. No tema escuro, o preto vira quase branco e o cinza escurece; os tons vêm da tela Mapa do painel.
 
 ## Typography
 
@@ -90,6 +90,6 @@ Botão primário preto. Seleção de Dia, Semana e Mês em botão preto, como a 
 
 - Faça: mantenha o agora visível em toda tela.
 - Faça: escreva o nome da categoria ao lado da cor na tela do dia e no compromisso aberto.
-- Não faça: mais de três cores além de preto e cinza.
+- Não faça: cor fora da paleta de 12, a mesma família das frentes do painel.
 - Não faça: barra colorida na lateral de item de lista.
 - Não faça: recurso remoto de fonte ou de script.
