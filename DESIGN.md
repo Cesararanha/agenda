@@ -17,15 +17,6 @@ colors:
   hover-ladrilho: "#262626"
   rotulo-claro: "#B9B9B9"
   rotulo-amarelo: "#3A3100"
-  noite: "#07080C"
-  noite-cartao: "#0E1016"
-  noite-ladrilho: "#171922"
-  noite-linha: "#2B2D35"
-  noite-bloco: "#3A3D47"
-  noite-texto: "#F2F2F2"
-  noite-texto-2: "#A5A7AE"
-  noite-azul: "#8FB4F5"
-  noite-alerta: "#F0876F"
 typography:
   rotulo:
     fontFamily: "JetBrains Mono, ui-monospace, Menlo, monospace"

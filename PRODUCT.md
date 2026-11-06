@@ -31,7 +31,7 @@ No Mac, em janela de navegador, com arrastar para mover. No celular, com uma mã
 
 ## Brand Commitments
 
-A identidade visual segue a do painel pessoal do dono, decisão dele em 2026-11-05. O tema acompanha o sistema, e a abertura no celular é o dia de hoje.
+A identidade visual segue a do painel pessoal do dono, decisão dele em 2026-11-05. O tema é sempre claro, preferência dele em 2026-11-05, mesmo com o sistema no escuro. A abertura no celular é o dia de hoje.
 
 ## Product Principles
 
