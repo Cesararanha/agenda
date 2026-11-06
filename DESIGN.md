@@ -1,95 +1,80 @@
 ---
 name: Agenda
-description: Um calendário de cores chapadas sobre branco, com o agora em azul.
+description: Um calendário de trabalho claro e quieto, em que a cor conta o que já passou, o que vem e o que está acontecendo.
 colors:
-  preto: "#0E0E0E"
-  preto-ladrilho: "#1C1C1C"
+  texto: "#191919"
   branco: "#FFFFFF"
-  cinza-texto: "#666666"
-  cinza-linha: "#E7E7E7"
-  cinza-bloco: "#D9D9D6"
-  hover-linha: "#F6F6F4"
-  azul-agora: "#2F6FDB"
-  amarelo: "#F6C700"
-  vermelho: "#E5532D"
+  barra-lateral: "#F7F7F5"
+  hover: "#F1F1EF"
+  linha: "#E6E6E3"
+  linha-da-grade: "#EEEEEC"
+  fim-de-semana: "#FAFAF8"
+  apoio: "#666664"
+  agora: "#D4441F"
+  foco: "#2F6FDB"
   alerta: "#B4341A"
-  hover-escuro: "#333333"
-  hover-ladrilho: "#262626"
-  rotulo-claro: "#B9B9B9"
-  rotulo-amarelo: "#3A3100"
 typography:
-  rotulo:
-    fontFamily: "JetBrains Mono, ui-monospace, Menlo, monospace"
-    fontSize: "11px"
-    letterSpacing: "0.04em"
-  numero:
-    fontFamily: "JetBrains Mono, ui-monospace, Menlo, monospace"
-    fontSize: "56px"
-    fontWeight: 300
-    letterSpacing: "-0.04em"
-  corpo:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
-    fontSize: "14px"
-    lineHeight: 1.45
-  titulo-do-dia:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
+  titulo-da-tela:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, sans-serif"
     fontSize: "24px"
-    fontWeight: 500
-    letterSpacing: "-0.02em"
-  titulo-de-dialogo:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
-    fontSize: "20px"
-    fontWeight: 500
-  item:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
-    fontSize: "16px"
-    fontWeight: 500
-  apoio:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
-    fontSize: "13px"
-  legenda:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
+    fontWeight: 700
+    letterSpacing: "-0.025em"
+  corpo:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, sans-serif"
+    fontSize: "14px"
+    lineHeight: 1.4
+  compromisso:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, sans-serif"
     fontSize: "12px"
-  bloco-no-telefone:
-    fontFamily: "Avenir Next, Helvetica Neue, system-ui, sans-serif"
-    fontSize: "9.5px"
+    fontWeight: 600
+  hora:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Segoe UI, Roboto, sans-serif"
+    fontSize: "11px"
 rounded:
-  marca: "2px"
   chip: "4px"
-  bloco: "6px"
-  botao: "8px"
-  ladrilho: "10px"
-  trilho: "16px"
+  bloco: "5px"
+  botao: "7px"
+  dialogo: "14px"
 ---
 
 ## Overview
 
-Mesma família visual do painel pessoal do dono: branco, preto, linhas finas e números em fonte mono. Aqui é uma ferramenta de trabalho, então o calendário continua no formato que qualquer pessoa reconhece.
+Ferramenta de uso diário. As referências são o Notion Calendar e o Fantastical, vistos de perto em 2026-11-06. Do painel do segundo cérebro vêm só as cores, por decisão do dono: nenhuma forma, tipografia ou composição dele. O tema é sempre claro.
 
 ## Colors
 
-Azul é o agora: a linha da hora, o ladrilho Agora e o rótulo do compromisso em andamento. O amarelo também marca o ladrilho Próximo. Cada categoria tem uma cor que o dono escolhe em uma paleta de 12, e o texto do bloco fica preto ou branco conforme o contraste. O padrão é Trabalho roxo, Faculdade turquesa, Estudo amarelo, Projeto vermelho-laranja, Saúde rosa, Pessoal azul e Outro cinza. A cor de cada compromisso vem da categoria, escrita por extenso na tela do dia e ao abrir o compromisso. No tema escuro, o preto vira quase branco e o cinza escurece; os tons vêm da tela Mapa do painel.
+A cor conta o estado do compromisso. Ainda por vir: fundo claro da cor da categoria, texto escuro da mesma cor e barrinha na cor cheia. Já passou: o mesmo bloco, desbotado. Acontecendo agora: a cor cheia toma o bloco e a linha dele na barra lateral. Os tons são calculados em `src/shared/cores.ts` a partir da paleta de 12, com contraste testado para qualquer escolha do dono.
+
+Cada categoria tem a cor que o dono escolhe. As de fábrica são Trabalho roxo, Faculdade turquesa, Estudo amarelo, Projeto vermelho-laranja, Saúde rosa, Pessoal azul e Outro cinza.
+
+O vermelho é o hoje e o agora: o número do dia, a linha da hora e a hora na régua. Fora disso, a interface é preto, branco e cinza.
 
 ## Typography
 
-Hora, data e número em JetBrains Mono, com algarismos tabulares. O resto em Avenir Next. A página não baixa fonte: onde a mono não existe, usa a mono do sistema.
+A fonte do sistema, a mesma família nativa do Fantastical no Mac e no iPhone, com algarismos tabulares. O título da tela combina uma parte forte e uma leve ("Novembro 2026"). A página não baixa fonte.
 
 ## Layout
 
-No desktop, o trilho preto de 276px fica à esquerda, com Agora, Próximo, Restam hoje e Sem horário. O calendário ocupa o resto. Até 1080px o trilho sai. Até 760px a barra de marcar vai para o pé da tela, ao alcance do polegar, e a agenda abre no dia de hoje, com a faixa dos 7 dias no topo. A semana cabe na largura, sem rolagem lateral.
+No desktop, a barra lateral clara de 256px ocupa toda a altura, com o mês pequeno, a lista do que vem por dia, Sem horário e a legenda das cores. O título, o campo de marcar, as visões e a navegação ficam em uma só barra acima do calendário. Até 1080px a barra lateral sai. Até 760px o campo de marcar vai para o pé da tela, ao alcance do polegar. A agenda abre sempre na semana, em qualquer aparelho.
+
+Semana e dia usam a mesma grade de horas, de 7h a 22h, que cresce só se houver compromisso fora disso. Ela abre com o agora à vista. Sábado e domingo têm um fundo levemente diferente.
 
 ## Elevation & Depth
 
-Sem sombras, salvo a do diálogo. A profundidade vem do contraste entre o trilho e o fundo.
+Sem sombras, salvo o diálogo, o bloco sendo arrastado e a opção escolhida entre Dia, Semana e Mês. A estrutura vem de linhas finas.
 
 ## Components
 
-Botão primário preto. Seleção de Dia, Semana e Mês em botão preto, como a navegação do painel. Compromisso em bloco sólido com cantos de 6px e sem contorno. Amostra quadrada de 10px liga uma lista à cor da categoria.
+Compromisso aberto: o título vem primeiro, sem rótulo, sobre o tom da categoria, que muda na hora ao escolher outra (Apple Calendar). O resto são linhas com ícone e campos sem rótulo, com a duração ao lado da hora e Dia inteiro e Repetir como opções discretas (Notion Calendar e Fantastical). Mudar o início leva o fim junto. O alcance de um compromisso que repete só é perguntado ao salvar ou remover, e remover sempre pede confirmação.
+
+Categorias são do dono: ele adiciona, remove e escolhe a cor em Editar categorias. Outro não sai, porque recebe os compromissos das removidas.
+
+Compromisso em bloco claro com cantos de 5px, título primeiro e hora depois. Em bloco curto, os dois ficam na mesma linha. A linha do agora é fina em toda a semana e forte no dia de hoje, com a hora na régua. Na lista lateral, o ponto de 8px liga o compromisso à cor. Atalhos: H hoje, D S M visões, setas navegam, N marca, Esc fecha.
 
 ## Do's and Don'ts
 
-- Faça: mantenha o agora visível em toda tela.
-- Faça: escreva o nome da categoria ao lado da cor na tela do dia e no compromisso aberto.
-- Não faça: cor fora da paleta de 12, a mesma família das frentes do painel.
-- Não faça: barra colorida na lateral de item de lista.
-- Não faça: recurso remoto de fonte ou de script.
+- Faça: mantenha o agora visível na semana e no dia.
+- Faça: use a barrinha colorida só no bloco de calendário; em lista, o ponto.
+- Não faça: cor fora da paleta de 12.
+- Não faça: mostrador, anel, ladrilho ou outra forma do painel.
+- Não faça: fonte mono como enfeite, nem recurso remoto de fonte ou de script.

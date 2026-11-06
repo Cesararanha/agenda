@@ -1,4 +1,4 @@
-import { dateOf, monthMatrix, startOfMonth, timeOf } from '../../shared/dates.js';
+import { dateOf, monthMatrix, startOfMonth, timeOf, weekday } from '../../shared/dates.js';
 import type { Occurrence } from '../../shared/types.js';
 
 interface Props {
@@ -26,7 +26,7 @@ export function MonthView({ anchor, today, events, onPickDay, onOpen }: Props) {
   return (
     <div className="month">
       <div className="month-head">
-        {['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((day) => (
+        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day) => (
           <div key={day}>{day}</div>
         ))}
       </div>
@@ -39,6 +39,7 @@ export function MonthView({ anchor, today, events, onPickDay, onOpen }: Props) {
               'month-cell',
               date.slice(0, 7) === month ? '' : 'other-month',
               date === today ? 'is-today' : '',
+              weekday(date) % 6 === 0 ? 'is-weekend' : '',
             ]
               .filter(Boolean)
               .join(' ');
@@ -65,7 +66,7 @@ export function MonthView({ anchor, today, events, onPickDay, onOpen }: Props) {
                       onOpen(event);
                     }}
                   >
-                    {event.allDay ? '' : `${timeOf(event.start)} `}
+                    {!event.allDay && <span className="chip-time">{timeOf(event.start)}</span>}
                     {event.title}
                   </button>
                 ))}

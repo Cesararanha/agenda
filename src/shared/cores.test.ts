@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_COLORS, inkFor, isPaletteColor, PALETTE } from './cores.js';
+import { DEFAULT_COLORS, inkFor, isPaletteColor, PALETTE, tonesFor } from './cores.js';
 
 const contraste = (a: string, b: string) => {
   const l = (hex: string) => {
@@ -18,4 +18,13 @@ test('toda cor da paleta tem texto legível', () => {
 test('as cores padrão estão na paleta', () => {
   for (const cor of Object.values(DEFAULT_COLORS)) assert.ok(isPaletteColor(cor), cor);
   assert.equal(isPaletteColor('#123456'), false);
+});
+
+test('todo bloco claro tem texto legível e não some no branco', () => {
+  for (const { nome, cor } of PALETTE) {
+    const { soft, deep, bar } = tonesFor(cor);
+    assert.ok(contraste(deep, soft) >= 4.5, `${nome}: texto`);
+    assert.ok(contraste(soft, '#ffffff') >= 1.14, `${nome}: fundo`);
+    assert.ok(contraste(bar, soft) >= 1.25, `${nome}: barra`);
+  }
 });

@@ -46,10 +46,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
+export interface CategoryInfo {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface Meta {
   today: string;
   tz: string;
-  categories: Array<{ id: string; color: string }>;
+  categories: CategoryInfo[];
   vaults: string[];
   whatsapp: boolean;
   agentSandbox?: boolean;
@@ -70,6 +76,9 @@ export type Scope = 'this' | 'future' | 'all';
 
 export const api = {
   meta: () => request<Meta>('GET', '/api/meta'),
+  createCategory: (name: string) => request<{ id: string; categories: CategoryInfo[] }>('POST', '/api/categories', { name }),
+  categoryUsage: (id: string) => request<{ count: number }>('GET', `/api/categories/${id}/usage`),
+  removeCategory: (id: string) => request<{ moved: number; categories: CategoryInfo[] }>('DELETE', `/api/categories/${id}`),
 
   setCategoryColor: (category: string, color: string) =>
     request<{ categories: Meta['categories'] }>('PUT', `/api/categories/${category}/color`, { color }),

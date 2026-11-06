@@ -43,7 +43,8 @@ const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use 'YYYY-MM-DD'");
 const MOMENT = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/, "use 'YYYY-MM-DD' ou 'YYYY-MM-DDTHH:mm'");
-const CATEGORY = z.enum(['faculdade', 'trabalho', 'projeto', 'estudo', 'pessoal', 'saude', 'outro']);
+// O dono pode criar categorias: a que não existir cai em Outro ao gravar.
+const CATEGORY = z.string().min(1).max(60).describe('faculdade, trabalho, projeto, estudo, pessoal, saude, outro ou uma criada pelo dono');
 const SCOPE = z.enum(['this', 'future', 'all']);
 
 server.tool(

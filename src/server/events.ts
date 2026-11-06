@@ -1,3 +1,4 @@
+import { FALLBACK_CATEGORY, knownCategory } from './categories.js';
 import { randomUUID } from 'node:crypto';
 import { audit, queryAll, queryOne, run, transaction } from './store.js';
 import { config } from './config.js';
@@ -16,7 +17,6 @@ import {
 } from '../shared/dates.js';
 import { formatRrule, occurrenceDates, parseRrule, type Rrule } from '../shared/recurrence.js';
 import {
-  CATEGORIES,
   type Category,
   type DateStr,
   type EventInput,
@@ -41,7 +41,7 @@ interface OverrideRow {
 export { BadRequest, NotFound };
 
 function normalizeCategory(value: unknown): Category {
-  return CATEGORIES.includes(value as Category) ? (value as Category) : 'outro';
+  return typeof value === 'string' && value ? value : FALLBACK_CATEGORY;
 }
 
 /** Aceita '2026-10-27T14:00', '2026-10-27 14:00', '2026-10-27T14:00:00' e '2026-10-27'. */
@@ -211,7 +211,7 @@ export async function createEvent(input: EventInput, actor = 'app'): Promise<Occ
     start: allDay ? dateOf(start) : start,
     end,
     all_day: allDay ? 1 : 0,
-    category: normalizeCategory(input.category),
+    category: await knownCategory(input.category),
     rrule: formatRrule(rule),
     exdates: '[]',
     source: input.source ?? 'app',
@@ -288,7 +288,7 @@ async function patchSeries(row: EventRow, patch: PatchInput, actor: string): Pro
     title: patch.title?.trim() || row.title,
     notes: patch.notes === undefined ? row.notes : patch.notes?.trim() || null,
     location: patch.location === undefined ? row.location : patch.location?.trim() || null,
-    category: patch.category ? normalizeCategory(patch.category) : normalizeCategory(row.category),
+    category: patch.category ? await knownCategory(patch.category) : normalizeCategory(row.category),
     start,
     end,
     all_day: allDay ? 1 : 0,

@@ -1,3 +1,5 @@
+import { DEFAULT_COLORS, DEFAULT_NAMES } from '../shared/cores.js';
+import { CATEGORIES } from '../shared/types.js';
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { config } from './config.js';
@@ -69,7 +71,23 @@ db.exec(`
     category TEXT PRIMARY KEY,
     color    TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS categories (
+    id       TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    color    TEXT NOT NULL,
+    position INTEGER NOT NULL
+  );
 `);
+
+// Só semeia com a tabela vazia: a categoria que o dono removeu não pode voltar.
+if (!db.prepare('SELECT 1 FROM categories LIMIT 1').get()) {
+  CATEGORIES.forEach((id, position) => {
+    db.prepare(`INSERT INTO categories (id, name, color, position)
+      VALUES (?, ?, COALESCE((SELECT color FROM category_colors WHERE category = ?), ?), ?)`)
+      .run(id, DEFAULT_NAMES[id], id, DEFAULT_COLORS[id], position);
+  });
+}
 
 // Banco criado antes da coluna de sugestao precisa ganhar ela sem perder dado.
 // Regra do Cesar (2026-10-27): nada sem horario definido entra no calendario.

@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
-import { api, type Scope } from '../api.js';
+import { useEffect, useMemo, useState } from 'react';
+import { api, type CategoryInfo, type Scope } from '../api.js';
 import type { QuickDraft } from '../../shared/quick-add.js';
-import { dateOf, timeOf } from '../../shared/dates.js';
+import { dateOf, minutesOfTime, timeFromMinutes, timeOf } from '../../shared/dates.js';
 import { formatRrule, parseRrule } from '../../shared/recurrence.js';
-import { CATEGORIES, type Category, type Occurrence } from '../../shared/types.js';
-import { NOME_CATEGORIA } from '../rotulos.js';
+import type { Category, Occurrence } from '../../shared/types.js';
 
 export type DialogState =
   | { mode: 'create'; date: string; time: string; title?: string; draft?: QuickDraft; notice?: string; remaining?: number; suggestionId?: string }
@@ -12,14 +11,38 @@ export type DialogState =
 
 interface Props {
   state: DialogState;
+  categories: CategoryInfo[];
   onClose: () => void;
   onSaved: (message?: string) => void | Promise<void>;
-  onError: (message: string) => void;
 }
 
 type Repeat = 'none' | 'daily' | 'weekly' | 'weekdays' | 'monthly' | 'custom';
 
-const DAY_LABELS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+const DAYS = [
+  ['D', 'domingo'], ['S', 'segunda'], ['T', 'terça'], ['Q', 'quarta'], ['Q', 'quinta'], ['S', 'sexta'], ['S', 'sábado'],
+] as const;
+const DAY_MINUTES = 24 * 60;
+
+function durationLabel(start: string, end: string): string {
+  if (!start || !end || end <= start) return '';
+  const total = minutesOfTime(end) - minutesOfTime(start);
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  if (!hours) return `${minutes} min`;
+  return minutes ? `${hours} h ${minutes}` : `${hours} h`;
+}
+
+const Icon = ({ path }: { path: string }) => (
+  <svg className="ev-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>
+);
+
+const ICONS = {
+  when: 'M8 14.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13ZM8 4.5V8l2.5 1.5',
+  repeat: 'M11 1.5 13.5 4 11 6.5M13.5 4H5a2.5 2.5 0 0 0-2.5 2.5V7M5 14.5 2.5 12 5 9.5M2.5 12H11a2.5 2.5 0 0 0 2.5-2.5V9',
+  category: 'M8.6 1.8H2.8a1 1 0 0 0-1 1v5.8l6.3 6.3a1 1 0 0 0 1.4 0l5-5a1 1 0 0 0 0-1.4L8.6 1.8ZM5.2 5.2h.01',
+  place: 'M8 14.5s5-4.3 5-8.2a5 5 0 0 0-10 0c0 3.9 5 8.2 5 8.2ZM8 8a1.7 1.7 0 1 0 0-3.4A1.7 1.7 0 0 0 8 8Z',
+  note: 'M2.5 4h11M2.5 8h11M2.5 12h7',
+};
 const WEEKDAYS = [1, 2, 3, 4, 5];
 
 function repeatFromRrule(rrule: string | null): { repeat: Repeat; days: number[]; until: string } {
@@ -51,7 +74,7 @@ function buildRrule(repeat: Repeat, days: number[], until: string, date: string)
   return formatRrule({ freq: 'WEEKLY', interval: 1, until: untilValue });
 }
 
-export function EventDialog({ state, onClose, onSaved, onError }: Props) {
+export function EventDialog({ state, categories, onClose, onSaved }: Props) {
   const editing = state.mode === 'edit' ? state.occurrence : null;
   const draft = state.mode === 'create' ? state.draft : undefined;
   const initialRepeat = useMemo(
@@ -83,20 +106,46 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
   const [repeat, setRepeat] = useState<Repeat>(initialRepeat.repeat);
   const [days, setDays] = useState<number[]>(initialRepeat.days);
   const [until, setUntil] = useState(initialRepeat.until);
-  const [scope, setScope] = useState<Scope>('this');
+  const [asking, setAsking] = useState<'save' | 'remove' | null>(null);
   const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState('');
-  const reportError = draft ? setSaveError : onError;
+  const [error, setError] = useState('');
 
   const fromVault = editing?.source === 'vault';
-  const askScope = Boolean(editing?.recurring);
-  const occurrenceOnly = askScope && scope === 'this';
+  const recurring = Boolean(editing?.recurring);
+  const repeatUnchanged = repeat === initialRepeat.repeat && days.join(',') === initialRepeat.days.join(',') && until === initialRepeat.until;
+  // categoria, dia inteiro e repetição são da série: não dá para mudar em um dia só
+  const changesSeries = Boolean(editing) && (category !== editing?.category || allDay !== editing?.allDay || !repeatUnchanged);
 
-  async function save(saveWithoutTime = false) {
-    if (!title.trim()) return reportError('Falta o título.');
-    if (!date) return reportError('Falta a data.');
-    if (!saveWithoutTime && !allDay && (!startTime || !endTime || endTime <= startTime)) return reportError('Informe início e fim válidos. O fim precisa ser depois do início.');
-    if (allDay && endDate && endDate < date) return reportError('A data final precisa ser igual ou posterior à inicial.');
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (asking) setAsking(null);
+      else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [asking, onClose]);
+
+  function changeStart(value: string) {
+    // o compromisso anda inteiro: mudar o início mantém a duração
+    const duration = startTime && endTime && endTime > startTime ? minutesOfTime(endTime) - minutesOfTime(startTime) : 0;
+    setStartTime(value);
+    if (value && duration && minutesOfTime(value) + duration < DAY_MINUTES) {
+      setEndTime(timeFromMinutes(minutesOfTime(value) + duration));
+    }
+  }
+
+  function validate(saveWithoutTime: boolean): boolean {
+    let problem = '';
+    if (!title.trim()) problem = 'Falta o título.';
+    else if (!date) problem = 'Falta a data.';
+    else if (!saveWithoutTime && !allDay && (!startTime || !endTime || endTime <= startTime)) problem = 'O fim precisa ser depois do início.';
+    else if (allDay && endDate && endDate < date) problem = 'A data final precisa ser igual ou depois da inicial.';
+    setError(problem);
+    return !problem;
+  }
+
+  async function save(saveWithoutTime = false, scope: Scope = recurring ? 'this' : 'all') {
     setBusy(true);
     try {
       const payload = {
@@ -107,12 +156,11 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         end: allDay ? endDate || date : `${date}T${endTime}`,
         notes: notes.trim() || null,
         location: location.trim() || null,
-        rrule: editing && repeat === initialRepeat.repeat && days.join(',') === initialRepeat.days.join(',') && until === initialRepeat.until
-          ? editing.rrule : buildRrule(repeat, days, until, date),
+        rrule: editing && repeatUnchanged ? editing.rrule : buildRrule(repeat, days, until, date),
       };
 
       if (editing) {
-        await api.update(editing.seriesId, payload, askScope ? scope : 'all', editing.occurrenceDate);
+        await api.update(editing.seriesId, payload, scope, editing.occurrenceDate);
         await onSaved(`Atualizado: ${payload.title}`);
       } else {
         if (draft) {
@@ -125,25 +173,39 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         }
         await onSaved(`${saveWithoutTime ? 'Sugestão guardada' : 'Marcado'}: ${payload.title}`);
       }
-    } catch (error) {
-      reportError((error as Error).message);
+    } catch (failure) {
+      setError((failure as Error).message);
+      setAsking(null);
     } finally {
       setBusy(false);
     }
   }
 
-  async function remove() {
+  async function remove(scope: Scope = recurring ? 'this' : 'all') {
     if (!editing) return;
     setBusy(true);
     try {
-      await api.remove(editing.seriesId, askScope ? scope : 'all', editing.occurrenceDate);
+      await api.remove(editing.seriesId, scope, editing.occurrenceDate);
       await onSaved(`Removido: ${editing.title}`);
-    } catch (error) {
-      onError((error as Error).message);
+    } catch (failure) {
+      setError((failure as Error).message);
+      setAsking(null);
     } finally {
       setBusy(false);
     }
   }
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (asking || busy || !validate(false)) return;
+    // quem repete só precisa decidir o alcance na hora de salvar
+    if (recurring && !fromVault) setAsking('save');
+    else void save();
+  }
+
+  const askScope = recurring && !fromVault;
+  const act = (scope: Scope) => (asking === 'remove' ? remove(scope) : save(false, scope));
+  const duration = durationLabel(startTime, endTime);
 
   return (
     <div
@@ -152,222 +214,182 @@ export function EventDialog({ state, onClose, onSaved, onError }: Props) {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="dialog" role="dialog" aria-modal="true">
-        <h2>{editing ? 'Compromisso' : 'Novo compromisso'}</h2>
+      <form
+        className={`dialog event-dialog cat-${category}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={editing ? 'Compromisso' : 'Novo compromisso'}
+        onSubmit={submit}
+        noValidate
+      >
+        <div className="ev-head">
+          <input
+            className="ev-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            autoFocus={!editing}
+            placeholder="Novo compromisso"
+            aria-label="Título"
+          />
+        </div>
 
-        {state.mode === 'create' && state.notice && <p role="status">{state.notice}</p>}
-        {state.mode === 'create' && (state.remaining ?? 0) > 1 && <p>{state.remaining} propostas para revisar.</p>}
-        {saveError && <p role="alert">{saveError}</p>}
+        <div className="ev-body">
+          {state.mode === 'create' && state.notice && <p className="ev-note" role="status">{state.notice}</p>}
+          {state.mode === 'create' && (state.remaining ?? 0) > 1 && <p className="ev-note">{state.remaining} propostas para revisar.</p>}
+          {fromVault && (
+            <p className="ev-note">
+              Vem do vault ({editing?.notes ?? 'arquivo do vault'}). Mude no arquivo e use <strong>Vault</strong> para sincronizar: o que mudar aqui volta atrás.
+            </p>
+          )}
 
-        {fromVault && (
-          <div className="scope-ask">
-            Esse marco vem do vault ({editing?.notes ?? 'arquivo do vault'}). Mude no arquivo e
-            clique em <strong>Vault</strong> pra ressincronizar: o que você editar aqui volta atrás
-            na próxima sincronização.
+          <div className="ev-row">
+            <Icon path={ICONS.when} />
+            <div className="ev-field">
+              <div className="ev-when">
+                <input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label={allDay ? 'Começa em' : 'Data'} />
+                {allDay ? (
+                  <>
+                    <span className="ev-to">até</span>
+                    <input type="date" value={endDate || date} onChange={(event) => setEndDate(event.target.value)} aria-label="Termina em" />
+                  </>
+                ) : (
+                  <span className="ev-times">
+                    <input type="time" step={60} value={startTime} onChange={(event) => changeStart(event.target.value)} aria-label="Início" />
+                    <span className="ev-to">até</span>
+                    <input type="time" step={60} value={endTime} onChange={(event) => setEndTime(event.target.value)} aria-label="Fim" />
+                    {duration && <span className="ev-duration">{duration}</span>}
+                  </span>
+                )}
+              </div>
+              <div className="ev-quiet">
+                {!draft && (
+                  <button type="button" aria-pressed={allDay} onClick={() => setAllDay((value) => !value)}>Dia inteiro</button>
+                )}
+                <button type="button" aria-pressed={repeat !== 'none'} onClick={() => setRepeat(repeat === 'none' ? 'weekly' : 'none')}>Repetir</button>
+              </div>
+            </div>
           </div>
-        )}
 
-        {askScope && !fromVault && (
-          <div className="scope-ask">
-            Esse compromisso repete. O que você quer mudar?
-            <div className="options">
-              {(
-                [
-                  ['this', 'Só esse dia'],
-                  ['future', 'Daqui pra frente'],
-                  ['all', 'A série toda'],
-                ] as Array<[Scope, string]>
-              ).map(([value, label]) => (
-                <button key={value} aria-pressed={scope === value} onClick={() => setScope(value)}>
-                  {label}
+          {repeat !== 'none' && (
+            <div className="ev-row">
+              <Icon path={ICONS.repeat} />
+              <div className="ev-field">
+                <div className="ev-repeat">
+                  <select value={repeat} onChange={(event) => setRepeat(event.target.value as Repeat)} aria-label="Repete">
+                    <option value="daily">todo dia</option>
+                    <option value="weekly">toda semana, nesse dia</option>
+                    <option value="weekdays">de segunda a sexta</option>
+                    <option value="monthly">todo mês, nesse dia</option>
+                    <option value="custom">dias escolhidos</option>
+                  </select>
+                  <span className="ev-to">até</span>
+                  <input type="date" value={until} onChange={(event) => setUntil(event.target.value)} aria-label="Repete até" />
+                </div>
+                {repeat === 'custom' && (
+                  <div className="ev-days" role="group" aria-label="Dias da semana">
+                    {DAYS.map(([letter, name], index) => (
+                      <button
+                        key={name}
+                        type="button"
+                        aria-pressed={days.includes(index)}
+                        aria-label={name}
+                        title={name}
+                        onClick={() =>
+                          setDays((current) =>
+                            current.includes(index)
+                              ? current.filter((day) => day !== index)
+                              : [...current, index].sort((a, b) => a - b),
+                          )
+                        }
+                      >
+                        {letter}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="ev-row">
+            <Icon path={ICONS.category} />
+            <div className="ev-cats" role="radiogroup" aria-label="Categoria">
+              {categories.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={item.id === category}
+                  className={`ev-cat cat-${item.id}`}
+                  onClick={() => setCategory(item.id)}
+                >
+                  <i className="sw" aria-hidden="true" />
+                  {item.name}
                 </button>
               ))}
             </div>
           </div>
-        )}
 
-        <div className="field">
-          <label htmlFor="titulo">Título</label>
-          <input
-            id="titulo"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            autoFocus={!editing}
-            placeholder="Aula de IA, academia, entrega do trabalho..."
-          />
+          <div className="ev-row">
+            <Icon path={ICONS.place} />
+            <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Local" aria-label="Local" />
+          </div>
+
+          <div className="ev-row">
+            <Icon path={ICONS.note} />
+            <textarea rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Nota" aria-label="Nota" />
+          </div>
+
+          {error && <p className="ev-error" role="alert">{error}</p>}
         </div>
 
-        <div className="field row">
-          <div>
-            <label htmlFor="categoria">Categoria</label>
-            <select
-              id="categoria"
-              disabled={occurrenceOnly}
-              value={category}
-              onChange={(event) => setCategory(event.target.value as Category)}
-            >
-              {CATEGORIES.map((option) => (
-                <option key={option} value={option}>
-                  {NOME_CATEGORIA[option]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="local">Local</label>
-            <input
-              id="local"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              placeholder="opcional"
-            />
-          </div>
-        </div>
-
-        {!draft && <div className="field">
-          <label className="check">
-            <input
-              type="checkbox"
-              disabled={occurrenceOnly}
-              checked={allDay}
-              onChange={(event) => setAllDay(event.target.checked)}
-            />
-            Dia inteiro
-          </label>
-        </div>}
-
-        <div className="field row">
-          <div>
-            <label htmlFor="data">{allDay ? 'Começa em' : 'Data'}</label>
-            <input
-              id="data"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
-          </div>
-          {allDay ? (
-            <div>
-              <label htmlFor="data-fim">Termina em</label>
-              <input
-                id="data-fim"
-                type="date"
-                value={endDate || date}
-                onChange={(event) => setEndDate(event.target.value)}
-              />
+        {asking === 'remove' && !askScope ? (
+          <div className="ev-ask">
+            <p>Remover este compromisso?</p>
+            <div className="ev-ask-actions">
+              <button type="button" onClick={() => setAsking(null)} disabled={busy}>Voltar</button>
+              <button type="button" className="danger-solid" onClick={() => void remove()} disabled={busy}>Remover</button>
             </div>
-          ) : (
-            <>
-              <div>
-                <label htmlFor="inicio">Início</label>
-                <input
-                  id="inicio"
-                  type="time"
-                  step={60}
-                  value={startTime}
-                  onChange={(event) => setStartTime(event.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="fim">Fim</label>
-                <input
-                  id="fim"
-                  type="time"
-                  step={60}
-                  value={endTime}
-                  onChange={(event) => setEndTime(event.target.value)}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="field row">
-          <div>
-            <label htmlFor="repete">Repete</label>
-            <select
-              id="repete"
-              disabled={occurrenceOnly}
-              value={repeat}
-              onChange={(event) => setRepeat(event.target.value as Repeat)}
-            >
-              <option value="none">não repete</option>
-              <option value="daily">todo dia</option>
-              <option value="weekly">toda semana, nesse dia</option>
-              <option value="weekdays">de segunda a sexta</option>
-              <option value="monthly">todo mês, nesse dia</option>
-              <option value="custom">dias escolhidos</option>
-            </select>
           </div>
-          {repeat !== 'none' && (
-            <div>
-              <label htmlFor="ate">Repete até</label>
-              <input
-                id="ate"
-                type="date"
-                disabled={occurrenceOnly}
-                value={until}
-                onChange={(event) => setUntil(event.target.value)}
-              />
-            </div>
-          )}
-        </div>
-
-        {occurrenceOnly && <p>Para alterar categoria, dia inteiro ou repetição, selecione “Daqui pra frente” ou “A serie toda”.</p>}
-        {repeat === 'custom' && (
-          <div className="field">
-            <label>Dias da semana</label>
-            <div className="options" style={{ display: 'flex', gap: 6 }}>
-              {DAY_LABELS.map((label, index) => (
+        ) : asking ? (
+          <div className="ev-ask">
+            <p>{asking === 'remove' ? 'Esse compromisso repete. O que remover?' : 'Esse compromisso repete. Onde salvar?'}</p>
+            <div className="ev-ask-options">
+              {([
+                ['this', 'Só este dia'],
+                ['future', 'Daqui pra frente'],
+                ['all', 'A série toda'],
+              ] as Array<[Scope, string]>).map(([value, label]) => (
                 <button
-                  key={label}
-                  aria-pressed={days.includes(index)}
-                  disabled={occurrenceOnly}
-                  onClick={() =>
-                    setDays((current) =>
-                      current.includes(index)
-                        ? current.filter((day) => day !== index)
-                        : [...current, index].sort((a, b) => a - b),
-                    )
-                  }
-                  style={{ flex: 1, padding: '6px 2px' }}
+                  key={value}
+                  type="button"
+                  className={asking === 'remove' ? 'danger' : ''}
+                  disabled={busy || (asking === 'save' && value === 'this' && changesSeries)}
+                  onClick={() => void act(value)}
                 >
                   {label}
                 </button>
               ))}
             </div>
+            {asking === 'save' && changesSeries && <p className="ev-hint">Categoria, dia inteiro e repetição valem da data em diante ou para a série toda.</p>}
+            <div className="ev-ask-actions">
+              <button type="button" onClick={() => setAsking(null)} disabled={busy}>Voltar</button>
+            </div>
+          </div>
+        ) : (
+          <div className="dialog-actions ev-actions">
+            {editing && (
+              <button type="button" className="danger" onClick={() => setAsking('remove')} disabled={busy}>Remover</button>
+            )}
+            <span className="spacer" />
+            <button type="button" onClick={onClose} disabled={busy}>Cancelar</button>
+            {draft && date && !startTime && !endTime && state.mode === 'create' && !state.suggestionId && (
+              <button type="button" onClick={() => { if (validate(true)) void save(true); }} disabled={busy}>Guardar como sugestão</button>
+            )}
+            <button type="submit" className="primary" disabled={busy}>{busy ? 'Salvando...' : 'Salvar'}</button>
           </div>
         )}
-
-        <div className="field">
-          <label htmlFor="nota">Nota</label>
-          <textarea
-            id="nota"
-            rows={2}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="opcional"
-          />
-        </div>
-
-        <div className="dialog-actions">
-          {editing && (
-            <button className="danger" onClick={remove} disabled={busy}>
-              Remover
-            </button>
-          )}
-          <span className="spacer" />
-          <button onClick={onClose} disabled={busy}>
-            Cancelar
-          </button>
-          {draft && date && !startTime && !endTime && state.mode === 'create' && !state.suggestionId && (
-            <button onClick={() => void save(true)} disabled={busy}>Guardar como sugestão</button>
-          )}
-          <button className="primary" onClick={() => void save()} disabled={busy}>
-            {busy ? 'Salvando...' : 'Salvar'}
-          </button>
-        </div>
-      </div>
+      </form>
     </div>
   );
 }

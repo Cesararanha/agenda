@@ -5,7 +5,7 @@ import { Ollama, pilotConfig } from '../../agent/pilot/ollama.js';
 import { addDays, dateOf, now } from '../../shared/dates.js';
 import { occurrenceDates, parseRrule } from '../../shared/recurrence.js';
 import type { QuickDraft, QuickProposal } from '../../shared/quick-add.js';
-import { CATEGORIES, type EventSource } from '../../shared/types.js';
+import type { EventSource } from '../../shared/types.js';
 import { config } from '../config.js';
 import { BadRequest, createEvent, listOccurrences } from '../events.js';
 import { audit, run, transaction } from '../store.js';
@@ -63,7 +63,8 @@ const quickDraft = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time: z.string().regex(/^(?:\d{2}:\d{2})?$/),
   endTime: z.string().regex(/^(?:\d{2}:\d{2})?$/),
-  category: z.enum(CATEGORIES),
+  // a categoria pode ser uma criada pelo dono; a que não existe mais cai em Outro ao gravar
+  category: z.string().trim().min(1).max(60),
   notes: z.string().max(500).nullable(),
   location: z.string().max(160).nullable(),
   rrule: z.string().max(120).nullable(),

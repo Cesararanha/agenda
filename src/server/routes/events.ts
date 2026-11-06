@@ -21,8 +21,8 @@ import {
   today,
 } from '../../shared/dates.js';
 import { isPaletteColor } from '../../shared/cores.js';
-import { CATEGORIES, type Category, type EventSource } from '../../shared/types.js';
-import { categoryColors, setCategoryColor } from '../category-colors.js';
+import type { Category, EventSource } from '../../shared/types.js';
+import { categoryUsage, createCategory, listCategories, removeCategory, setCategoryColor } from '../categories.js';
 
 interface RangeQuery {
   from?: string;
@@ -47,20 +47,32 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/meta', async () => ({
     today: config.agentDemoNow ? config.agentDemoNow.slice(0, 10) : today(config.tz),
     tz: config.tz,
-    categories: await categoryColors(),
+    categories: await listCategories(),
     vaults: config.vaults.map((v) => v.label),
     whatsapp: config.whatsapp.enabled,
     agentSandbox: config.agentSandbox,
     ...(config.agentSandbox ? { agentDemoId: config.agentDemoId } : {}),
   }));
 
+  app.post('/api/categories', async (request, reply) => {
+    const created = await createCategory((request.body as { name?: unknown } | null)?.name);
+    return reply.code(201).send({ id: created.id, categories: await listCategories() });
+  });
+
+  app.get<{ Params: { id: string } }>('/api/categories/:id/usage', async (request) => ({
+    count: await categoryUsage(request.params.id),
+  }));
+
+  app.delete<{ Params: { id: string } }>('/api/categories/:id', async (request) => {
+    const moved = await removeCategory(request.params.id);
+    return { moved, categories: await listCategories() };
+  });
+
   app.put<{ Params: { id: string } }>('/api/categories/:id/color', async (request, reply) => {
-    const category = request.params.id as Category;
     const color = (request.body as { color?: unknown } | null)?.color;
-    if (!CATEGORIES.includes(category)) return reply.code(404).send({ error: 'categoria nao encontrada' });
     if (!isPaletteColor(color)) return reply.code(400).send({ error: 'cor fora da paleta' });
-    await setCategoryColor(category, color);
-    return { categories: await categoryColors() };
+    await setCategoryColor(request.params.id, color);
+    return { categories: await listCategories() };
   });
 
   app.get<{ Querystring: RangeQuery }>('/api/events', async (request) => {

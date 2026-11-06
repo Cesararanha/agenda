@@ -15,7 +15,10 @@ export const CATEGORIES = [
   'outro',
 ] as const;
 
-export type Category = (typeof CATEGORIES)[number];
+/** As categorias de fábrica, conhecidas pelo agente e pelo importador do vault. */
+export type BuiltinCategory = (typeof CATEGORIES)[number];
+/** O dono adiciona e remove categorias: a lista viva está na tabela categories. */
+export type Category = string;
 
 export type EventSource = 'app' | 'vault' | 'whatsapp' | 'ia';
 

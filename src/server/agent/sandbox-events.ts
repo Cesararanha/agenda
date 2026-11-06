@@ -43,7 +43,7 @@ interface OverrideRow {
 export { BadRequest, NotFound };
 
 function normalizeCategory(value: unknown): Category {
-  return CATEGORIES.includes(value as Category) ? (value as Category) : 'outro';
+  return (CATEGORIES as readonly string[]).includes(String(value)) ? String(value) : 'outro';
 }
 
 /** Aceita '2026-10-27T14:00', '2026-10-27 14:00', '2026-10-27T14:00:00' e '2026-10-27'. */

@@ -31,7 +31,7 @@ No Mac, em janela de navegador, com arrastar para mover. No celular, com uma mã
 
 ## Brand Commitments
 
-A identidade visual segue a do painel pessoal do dono, decisão dele em 2026-11-05. O tema é sempre claro, preferência dele em 2026-11-05, mesmo com o sistema no escuro. A abertura no celular é o dia de hoje.
+O design parte de referências externas de excelência (Notion Calendar e Fantastical) e, do painel pessoal do dono, usa só as cores, decisão dele em 2026-11-05. O tema é sempre claro, preferência dele em 2026-11-05, mesmo com o sistema no escuro. A abertura é sempre na semana, em qualquer aparelho, preferência dele em 2026-11-06.
 
 ## Product Principles
 

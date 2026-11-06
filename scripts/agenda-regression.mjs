@@ -200,6 +200,28 @@ try {
   assert.equal((await request('/api/categories/inexistente/color', 'PUT', { color: '#7a4fd0' })).status, 404);
   assert.equal((await request('/api/categories/estudo/color', 'PUT', { color: '#7a4fd0' })).status, 200);
   assert.equal((await request('/api/meta')).body.categories.find((item) => item.id === 'estudo').color, '#7a4fd0');
+
+  // Categorias são do dono: adiciona, usa, remove, e os compromissos vão para Outro.
+  assert.equal((await request('/api/categories', 'POST', { name: '  ' })).status, 400, 'nome vazio');
+  assert.equal((await request('/api/categories', 'POST', { name: 'trabalho' })).status, 400, 'nome repetido');
+  const nova = await request('/api/categories', 'POST', { name: 'Família e Saúde!' });
+  assert.equal(nova.status, 201);
+  assert.equal(nova.body.id, 'familia-e-saude', 'id vira classe de CSS');
+  assert.equal(nova.body.categories.at(-1).id, 'outro', 'Outro fica por último');
+  const comNova = await request('/api/events', 'POST', { title: 'Almoço de domingo', start: '2030-03-10T12:00', end: '2030-03-10T13:00', category: 'familia-e-saude' });
+  assert.equal(comNova.status, 201);
+  assert.equal(comNova.body.category, 'familia-e-saude', 'a categoria nova não pode virar Outro');
+  const lida = await request('/api/events?from=2030-03-10&to=2030-03-10');
+  assert.equal(lida.body.events[0].category, 'familia-e-saude');
+  assert.equal((await request('/api/categories/familia-e-saude/usage')).body.count, 1);
+  assert.equal((await request('/api/categories/outro', 'DELETE')).status, 400, 'Outro não sai');
+  assert.equal((await request('/api/categories/inexistente', 'DELETE')).status, 404);
+  const removida = await request('/api/categories/familia-e-saude', 'DELETE');
+  assert.equal(removida.status, 200);
+  assert.equal(removida.body.moved, 1);
+  assert.equal((await request('/api/events?from=2030-03-10&to=2030-03-10')).body.events[0].category, 'outro', 'compromisso vai para Outro');
+  const semCategoria = await request('/api/events', 'POST', { title: 'Categoria apagada', start: '2030-03-11T12:00', end: '2030-03-11T13:00', category: 'familia-e-saude' });
+  assert.equal(semCategoria.body.category, 'outro', 'categoria que não existe mais cai em Outro');
   console.log('PASS agenda: PWA, autenticação/proxy, webhook, CRUD, recorrência e quick-add, com banco temporário e zero vaults.');
 } finally {
   child.kill('SIGTERM');

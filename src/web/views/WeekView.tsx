@@ -5,6 +5,7 @@ import {
   addMinutes,
   dateOf,
   minutesOfTime,
+  now as nowIn,
   timeOf,
   weekday,
 } from '../../shared/dates.js';
@@ -12,11 +13,12 @@ import type { Occurrence } from '../../shared/types.js';
 import { hourRange } from '../../shared/grade.js';
 import { DIA_CURTO } from '../rotulos.js';
 
-const HOUR_HEIGHT = 50;
+const HOUR_HEIGHT = 52;
 const SNAP_MINUTES = 15;
 
 interface Props {
-  from: string;
+  /** os dias da grade: sete na semana, um na tela do dia */
+  days: string[];
   today: string;
   events: Occurrence[];
   onPick: (date: string, time: string) => void;
@@ -56,7 +58,7 @@ function place(occurrences: Occurrence[], startHour: number): Placed[] {
 
   for (const occurrence of sorted) {
     const { startMin, endMin } = minutesOf(occurrence);
-    const height = Math.max(18, ((endMin - startMin) / 60) * HOUR_HEIGHT);
+    const height = Math.max(20, ((endMin - startMin) / 60) * HOUR_HEIGHT);
 
     if (startMin >= clusterEnd && cluster.length) flush();
 
@@ -71,43 +73,39 @@ function place(occurrences: Occurrence[], startHour: number): Placed[] {
   return placed;
 }
 
-export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError }: Props) {
-  const days = Array.from({ length: 7 }, (_, index) => addDays(from, index));
+export function WeekView({ days, today, events, onPick, onOpen, onMoved, onError }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const originRef = useRef<{ x: number; y: number } | null>(null);
   // no toque, arrastar é rolar a tela: compromisso só abre
   const touchRef = useRef(false);
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
-  const [nowMinutes, setNowMinutes] = useState<number | null>(null);
+  const [now, setNow] = useState(() => nowIn());
 
-  // linha do agora, so quando a semana mostrada contem hoje
   useEffect(() => {
-    const update = () => {
-      const current = new Date();
-      const date = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
-      if (date < from || date > addDays(from, 6)) return setNowMinutes(null);
-      setNowMinutes(current.getHours() * 60 + current.getMinutes());
-    };
-    update();
-    const timer = window.setInterval(update, 60_000);
+    const timer = window.setInterval(() => setNow(nowIn()), 30_000);
     return () => window.clearInterval(timer);
-  }, [from]);
-
-  // a grade já começa de manhã: vindo do mês, não herda a rolagem de lá
-  useEffect(() => {
-    const content = gridRef.current?.closest('.content');
-    if (content) content.scrollTop = 0;
   }, []);
 
-  const allDay = events.filter((event) => event.allDay);
+  const allDay = events.filter(
+    (event) => event.allDay && days.some((date) => dateOf(event.start) <= date && dateOf(event.end) >= date),
+  );
   const timed = events.filter((event) => !event.allDay);
-  const inWeek = timed.filter((event) => days.includes(dateOf(event.start)));
-  const { start: startHour, end: endHour } = hourRange(inWeek.map(minutesOf));
+  const inView = timed.filter((event) => days.includes(dateOf(event.start)));
+  const { start: startHour, end: endHour } = hourRange(inView.map(minutesOf));
   const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
+  // a linha do agora só existe quando o dia de hoje está na grade e dentro das horas dela
+  const nowMinutes = days.includes(dateOf(now)) ? minutesOfTime(timeOf(now) ?? '00:00') : null;
   const nowTop =
     nowMinutes !== null && nowMinutes >= startHour * 60 && nowMinutes < endHour * 60
       ? ((nowMinutes - startHour * 60) / 60) * HOUR_HEIGHT
       : null;
+
+  // abre com o agora à vista; sem ele, do começo da manhã
+  useEffect(() => {
+    const content = gridRef.current?.closest('.content');
+    if (content) content.scrollTop = nowTop === null ? 0 : Math.max(0, nowTop - content.clientHeight / 3);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [days[0], days.length]);
 
   function commitMove(occurrence: Occurrence, dx: number, dy: number) {
     const column = (gridRef.current?.querySelector('.col')?.clientWidth ?? 1) || 1;
@@ -133,16 +131,16 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
   }
 
   return (
-    <div className="week" ref={gridRef}>
-      <div className="week-head">
+    <div className={`week${days.length === 1 ? ' single' : ''}`} ref={gridRef} style={{ '--cols': days.length } as React.CSSProperties}>
+      {days.length > 1 && <div className="week-head">
         <div />
         {days.map((date) => (
           <div key={date} className={`day${date === today ? ' is-today' : ''}`}>
-            {DIA_CURTO[weekday(date)]}
+            <span>{DIA_CURTO[weekday(date)]}</span>
             <strong>{Number(date.slice(8, 10))}</strong>
           </div>
         ))}
-      </div>
+      </div>}
 
       {allDay.length > 0 && <div className="allday-row">
         <div className="label">dia inteiro</div>
@@ -167,13 +165,20 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
       <div className="grid">
         <div className="hours">
           {hours.map((hour) => (
-            <span key={hour}>{hour === 0 ? '' : `${String(hour).padStart(2, '0')}:00`}</span>
+            <span key={hour}>{hour === 0 ? '' : <>{String(hour).padStart(2, '0')}<small>:00</small></>}</span>
           ))}
-          {endHour < 24 && <span className="last">{`${String(endHour).padStart(2, '0')}:00`}</span>}
+          {endHour < 24 && <span className="last">{String(endHour).padStart(2, '0')}<small>:00</small></span>}
         </div>
 
+        {nowTop !== null && (
+          <>
+            <div className="now-across" style={{ top: nowTop }} />
+            <div className="now-label" style={{ top: nowTop }}>{timeOf(now)}</div>
+          </>
+        )}
+
         {days.map((date) => (
-          <div key={date} className={`col${date === today ? ' is-today' : ''}`}>
+          <div key={date} className={`col${date === today ? ' is-today' : ''}${weekday(date) % 6 === 0 ? ' is-weekend' : ''}`}>
             {hours.map((hour) => (
               <div
                 key={hour}
@@ -190,10 +195,13 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
               ({ occurrence, top, height, lane, lanes }) => {
                 const isDragging = drag?.id === occurrence.occurrenceId;
                 const width = 100 / lanes;
+                const past = occurrence.end <= now;
+                const current = occurrence.start <= now && now < occurrence.end;
+                const short = height < 34;
                 return (
                   <button
                     key={occurrence.occurrenceId}
-                    className={`event cat-${occurrence.category}${isDragging ? ' dragging' : ''}${occurrence.source === 'vault' ? ' from-vault' : ''}`}
+                    className={`event cat-${occurrence.category}${isDragging ? ' dragging' : ''}${occurrence.source === 'vault' ? ' from-vault' : ''}${past ? ' past' : ''}${current ? ' current' : ''}${short ? ' short' : ''}`}
                     style={{
                       top,
                       height,
@@ -240,11 +248,12 @@ export function WeekView({ from, today, events, onPick, onOpen, onMoved, onError
                     }}
                     title={`${timeOf(occurrence.start)} ${occurrence.title}`}
                   >
+                    <strong>{occurrence.title}</strong>
                     <span className="time">
                       {timeOf(occurrence.start)}
-                      {height > 34 ? `–${timeOf(occurrence.end)}` : ''}
+                      {short ? '' : `–${timeOf(occurrence.end)}`}
+                      {height >= 60 && occurrence.location ? ` · ${occurrence.location}` : ''}
                     </span>
-                    {occurrence.title}
                   </button>
                 );
               },
